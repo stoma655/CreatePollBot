@@ -25,6 +25,9 @@ const TournamentSchema = new mongoose.Schema({
   },
   password: { // новое поле для пароля (если турнир приватный)
     type: String
+  },
+  image: {
+    type: String
   }
 });
 

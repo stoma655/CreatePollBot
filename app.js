@@ -8,6 +8,8 @@ const Poll = require('./models/poll');
 const User = require('./models/users');
 const Registration = require('./models/registrations');
 const Vote = require('./models/votes');
+// const ChatUser = require('./models/chatUser');
+
 
 const bot = new Telegraf('6302702257:AAHG8kSyIOcWSBBD3aAeiMR_dcO1OcfGp-U');
 
@@ -116,9 +118,17 @@ bot.command('/clear', (ctx) => {
           ctx.session.awaitingTournamentData.step = 'description';
         } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'description') {
           ctx.session.awaitingTournamentData.description = ctx.message.text;
-          ctx.reply('Введите дату начала турнира в формате ГГГГ-ММ-ДД:');
-          ctx.session.awaitingTournamentData.step = 'startDate';
-        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'startDate') {
+
+          ctx.reply('Пожалуйста, введите URL изображения турнира:');
+            ctx.session.awaitingTournamentData.step = 'imageUrl';
+
+        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'imageUrl') {
+            ctx.session.awaitingTournamentData.imageUrl = ctx.message.text;
+
+            // Переходите к следующему шагу
+            ctx.reply('Введите дату начала турнира в формате ГГГГ-ММ-ДД:');
+            ctx.session.awaitingTournamentData.step = 'startDate';
+          } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'startDate') {
             const startDate = new Date(ctx.message.text);
             if (isNaN(startDate)) {
               ctx.reply('Неверный формат даты. Пожалуйста, введите дату начала турнира в формате ГГГГ-ММ-ДД:');
@@ -157,7 +167,8 @@ bot.command('/clear', (ctx) => {
                     endDate: ctx.session.awaitingTournamentData.endDate,
                     buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
                     type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
-                    password: ctx.session.awaitingTournamentData.type.toLowerCase() === 'приватный' ? ctx.session.awaitingTournamentData.password : '' // добавлено новое поле
+                    password: ctx.session.awaitingTournamentData.type.toLowerCase() === 'приватный' ? ctx.session.awaitingTournamentData.password : '', // добавлено новое поле
+                    image: ctx.session.awaitingTournamentData.imageUrl
                 });
 
                 newTournament.save()
@@ -178,7 +189,8 @@ bot.command('/clear', (ctx) => {
                 endDate: ctx.session.awaitingTournamentData.endDate,
                 buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
                 type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
-                password: ctx.session.awaitingTournamentData.type.toLowerCase() === 'private' ? ctx.session.awaitingTournamentData.password : '' // добавлено новое поле
+                password: ctx.session.awaitingTournamentData.type.toLowerCase() === 'private' ? ctx.session.awaitingTournamentData.password : '', // добавлено новое поле
+                image: ctx.session.awaitingTournamentData.imageUrl
             });
 
             newTournament.save()
@@ -293,56 +305,109 @@ bot.command('/clear', (ctx) => {
   }
 
   function handleUserText(ctx) {
+    // if (ctx.message.text === 'Регистрация в турнир') {
+    //     // Найдите все регистрации текущего пользователя
+    //     Registration.find({ telegramTag: ctx.from.username })
+    //       .then(registrations => {
+    //         const registeredTournaments = registrations.map(registration => registration.tournamentId.toString());
+      
+    //         // Найдите все турниры в базе данных
+    //         Tournament.find()
+    //           .then(tournaments => {
+    //             // Отправьте каждый турнир пользователю
+    //             tournaments.forEach(async tournament => {
+    //               const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
+    //               const count = tournamentRegistrations.length;
+    //               if (!registeredTournaments.includes(tournament._id.toString())) {
+    //                 if (tournament.image) {
+    //                   ctx.replyWithPhoto(
+    //                     { url: tournament.image },
+    //                     { caption: `*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}`, parse_mode: 'Markdown' },
+    //                     Markup.inlineKeyboard([
+    //                       Markup.button.callback('Присоединиться', `join_${tournament._id}`)
+    //                     ])
+    //                   );
+    //                 } else {
+    //                   ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}`, Markup.inlineKeyboard([
+    //                     Markup.button.callback('Присоединиться', `join_${tournament._id}`)
+    //                   ]));
+    //                 }
+    //               } else {
+    //                 if (tournament.image) {
+    //                   ctx.replyWithPhoto(
+    //                     { url: tournament.image },
+    //                     { caption: `*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}\n\nВы уже зарегистрированы на этот турнир.`, parse_mode: 'Markdown' }
+    //                   );
+    //                 } else {
+    //                   ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}\n\nВы уже зарегистрированы на этот турнир.`);
+    //                 }
+    //               }
+    //             });
+    //           })
+    //           .catch(error => console.error('Ошибка при поиске турниров:', error));
+    //       })
+    //       .catch(error => console.error('Ошибка при поиске регистраций:', error));
+    //   }
+
     if (ctx.message.text === 'Регистрация в турнир') {
         // Найдите все регистрации текущего пользователя
         Registration.find({ telegramTag: ctx.from.username })
           .then(registrations => {
             const registeredTournaments = registrations.map(registration => registration.tournamentId.toString());
-    
+      
             // Найдите все турниры в базе данных
             Tournament.find()
               .then(tournaments => {
                 // Отправьте каждый турнир пользователю
-                tournaments.forEach(async tournament => {  // Добавьте async здесь
-                  const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });  // Используйте await здесь
+                tournaments.forEach(async tournament => {
+                  const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
                   const count = tournamentRegistrations.length;
                   if (!registeredTournaments.includes(tournament._id.toString())) {
-                    ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\n ⏺ Количество регистраций: ${count}`, Markup.inlineKeyboard([
+                    let message = `*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}`;
+                    if (tournament.image) {
+                      message += `\n ${tournament.image}`;
+                    }
+                    ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
                       Markup.button.callback('Присоединиться', `join_${tournament._id}`)
                     ]));
                   } else {
-                    ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\n⏺ Количество регистраций: ${count}\n\nВы уже зарегистрированы на этот турнир.`);
+                    let message = `*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\n⏺ Количество регистраций: ${count}\n\nВы уже зарегистрированы на этот турнир.`;
+                    if (tournament.image) {
+                      message += `\n ${tournament.image}`;
+                    }
+                    ctx.replyWithMarkdown(message);
                   }
                 });
               })
               .catch(error => console.error('Ошибка при поиске турниров:', error));
           })
           .catch(error => console.error('Ошибка при поиске регистраций:', error));
-    } else if (ctx.message.text === 'Мои турниры') {
+      }
+       else if (ctx.message.text === 'Мои турниры') {
         // Найдите все регистрации текущего пользователя
         Registration.find({ telegramTag: ctx.from.username })
-          .then(registrations => {
+        .then(registrations => {
             // Получите список ID турниров, на которые зарегистрирован пользователь
             const registeredTournaments = registrations.map(registration => registration.tournamentId);
-  
+
             // Найдите все турниры, на которые зарегистрирован пользователь
             Tournament.find({ _id: { $in: registeredTournaments } })
-              .then(tournaments => {
+            .then(tournaments => {
                 // Отправьте каждый турнир пользователю
                 tournaments.forEach(tournament => {
                     const registration = registrations.find(reg => reg.tournamentId.toString() === tournament._id.toString());
-                    ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\nБай-ин: ${registration.buyIn}\nСтатус: ${registration.status}`,
-                      Markup.inlineKeyboard([
+                    ctx.replyWithMarkdown(`*${tournament.name}*\n${tournament.description}\nТип: ${tournament.type === 'private' ? 'Приватный' : 'Публичный'}\nБай-ин: ${registration.buyIn}`,
+                    Markup.inlineKeyboard([
                         [Markup.button.callback('Матчи для ставок', `bets_${tournament._id}`)],
                         [Markup.button.callback('Результаты матчей', `results_${tournament._id}`)],
                         [Markup.button.callback('Турнирное положение', `standings_${tournament._id}`)]
-                      ])
+                    ])
                     );
-                  });
-              })
-              .catch(error => console.error('Ошибка при поиске турниров:', error));
-          })
-          .catch(error => console.error('Ошибка при поиске регистраций:', error));
+                });
+            })
+            .catch(error => console.error('Ошибка при поиске турниров:', error));
+        })
+        .catch(error => console.error('Ошибка при поиске регистраций:', error));
       } else if (ctx.session.awaitingBuyIn) {
         const buyIn = ctx.message.text;
         if (buyIn === 'Фри') {
@@ -414,7 +479,45 @@ bot.command('/clear', (ctx) => {
             }
           })
           .catch(error => console.error('Ошибка при поиске пользователя:', error));
+      } else if (ctx.session.awaitingTournamentPassword) {
+        const password = ctx.message.text;
+        // Найдите турнир по ID
+        Tournament.findById(ctx.session.awaitingTournamentPassword.tournamentId)
+          .then(tournament => {
+            if (tournament) {
+              // Сравните введенный пароль с паролем турнира
+              if (password === tournament.password) {
+                // Если пароли совпадают, продолжите процесс регистрации
+                
+                Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username })
+                    .then(registration => {
+                        if (registration) {
+                        // Если регистрация уже существует, сообщить пользователю
+                        ctx.reply('Вы уже зарегистрированы на этот турнир.');
+                        } else {
+                        // Если регистрации нет, позволить пользователю зарегистрироваться
+                        ctx.reply('Выберите бай-ин:', Markup.keyboard(tournament.buyIns).oneTime().resize());
+                        ctx.session.awaitingBuyIn = { 
+                            tournamentId: tournament._id,
+                            tournamentTitle: tournament.name // Сохраните название турнира
+                        };
+                        }
+                    })
+                    .catch(error => console.error('Ошибка при поиске регистрации:', error));
+                    delete ctx.session.awaitingTournamentPassword;
+
+              } else {
+                // Если пароли не совпадают, попросите пользователя ввести пароль еще раз
+                ctx.reply('Неверный пароль. Пожалуйста, попробуйте еще раз.');
+              }
+            } else {
+              ctx.reply('Турнир не найден.');
+            }
+          })
+          .catch(error => console.error('Ошибка при поиске турнира:', error));
       }
+
+
   }
   
   bot.on('callback_query', (ctx) => {
@@ -496,22 +599,35 @@ bot.command('/clear', (ctx) => {
         Tournament.findById(tournamentId)
           .then(tournament => {
             if (tournament) {
-              // Проверить, есть ли уже регистрация на этот турнир
-              Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username })
-                .then(registration => {
-                  if (registration) {
-                    // Если регистрация уже существует, сообщить пользователю
-                    ctx.reply('Вы уже зарегистрированы на этот турнир.');
-                  } else {
-                    // Если регистрации нет, позволить пользователю зарегистрироваться
-                    ctx.reply('Выберите бай-ин:', Markup.keyboard(tournament.buyIns).oneTime().resize());
-                    ctx.session.awaitingBuyIn = { 
-                      tournamentId: tournament._id,
-                      tournamentTitle: tournament.name // Сохраните название турнира
+                // Проверьте, является ли турнир приватным
+                ///
+                if (tournament.type === "private") {
+                    // Если турнир приватный, попросите пользователя ввести пароль
+                    // продолжение регистрации в приват находится в опбработчике текста пароля от юзера
+                    ctx.reply('Этот турнир является приватным. Пожалуйста, введите пароль для регистрации.');
+                    ctx.session.awaitingTournamentPassword = {
+                      tournamentId: tournamentId
                     };
+                  } else {
+                    // Если турнир публичный, продолжите процесс регистрации как обычно
+                                  // Проверить, есть ли уже регистрация на этот турнир
+                    Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username })
+                    .then(registration => {
+                        if (registration) {
+                        // Если регистрация уже существует, сообщить пользователю
+                        ctx.reply('Вы уже зарегистрированы на этот турнир.');
+                        } else {
+                        // Если регистрации нет, позволить пользователю зарегистрироваться
+                        ctx.reply('Выберите бай-ин:', Markup.keyboard(tournament.buyIns).oneTime().resize());
+                        ctx.session.awaitingBuyIn = { 
+                            tournamentId: tournament._id,
+                            tournamentTitle: tournament.name // Сохраните название турнира
+                        };
+                        }
+                    })
+                    .catch(error => console.error('Ошибка при поиске регистрации:', error));
                   }
-                })
-                .catch(error => console.error('Ошибка при поиске регистрации:', error));
+                  ///
             } else {
               ctx.reply('Турнир не найден.');
             }
