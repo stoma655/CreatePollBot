@@ -11,8 +11,14 @@ const PollSchema = new Schema({
     required: true
   },
   options: [{
-    type: String,
-    required: true
+    text: {
+      type: String,
+      required: true
+    },
+    points: {
+      type: Number,
+      required: true
+    }
   }],
   votesCount: {
     type: Number,
