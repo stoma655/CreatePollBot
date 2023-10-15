@@ -44,6 +44,10 @@ const VoteSchema = new Schema({
   optionText: {
     type: String,
     required: true
+  },
+  optionPoints: { 
+    type: Number,
+    required: true
   }
 });
 

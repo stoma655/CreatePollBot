@@ -20,47 +20,56 @@ bot.use(session.middleware());
 const ADMIN_PASSWORD = 'ss';
 
 bot.start((ctx) => {
-    // Поиск пользователя в базе данных
-    User.findOne({ telegramTag: ctx.from.username })
-      .then(user => {
-        if (!user) {
-          // Создание нового пользователя, если он не найден
-          let newUser = new User({
-            telegramName: ctx.from.first_name + ' ' + ctx.from.last_name, // Используйте полное имя
-            telegramTag: ctx.from.username,
-            walletNumber: '' // Оставьте номер кошелька пустым
-          });
-  
-          // Сохранение нового пользователя в базе данных
-          newUser.save()
-            .then(() => {
-              if (ctx.session.isAdmin) {
-                ctx.reply('Привет, админ!', Markup.keyboard([
-                  ['Создать турнир', 'Показать турниры'],
-                  ['Создать опрос']
-                ]).resize());
-              } else {
-                ctx.reply(
-                  'Добро пожаловать!',
-                  Markup.keyboard([
-                    ['🔑 Регистрация в турнир', '🎮 Мои турниры']
-                  ]).resize()
-                );
-              }
-            })
-            .catch(error => console.error('Ошибка при сохранении пользователя:', error));
-        } else {
-          // Если пользователь уже существует, просто отправьте приветственное сообщение
-          ctx.reply(
-            'Добро пожаловать обратно!',
-            Markup.keyboard([
-              ['🔑 Регистрация в турнир', '🎮 Мои турниры']
-            ]).resize()
-          );
-        }
-      })
-      .catch(error => console.error('Ошибка при поиске пользователя:', error));
+    // Проверяем наличие username
+    if (!ctx.from.username) {
+      // Если username отсутствует, отправляем сообщение пользователю
+      ctx.reply('Пожалуйста, установите username в настройках Telegram, прежде чем использовать этого бота.');
+    } else {
+      // Если username есть, продолжаем как обычно
+      // Поиск пользователя в базе данных
+      User.findOne({ telegramTag: ctx.from.username })
+        .then(user => {
+          if (!user) {
+            // Создание нового пользователя, если он не найден
+            let newUser = new User({
+              telegramName: ctx.from.first_name + ' ' + ctx.from.last_name, // Используйте полное имя
+              telegramTag: ctx.from.username,
+              walletNumber: '' // Оставьте номер кошелька пустым
+            });
+    
+            // Сохранение нового пользователя в базе данных
+            newUser.save()
+              .then(() => {
+                if (ctx.session.isAdmin) {
+                  ctx.reply('Привет, админ!', Markup.keyboard([
+                    ['Создать турнир', 'Показать турниры'],
+                    ['Создать опрос']
+                  ]).resize());
+                } else {
+                  ctx.reply(
+                    'Добро пожаловать!',
+                    Markup.keyboard([
+                      ['🔑 Регистрация в турнир', '🎮 Мои турниры']
+                    ]).resize()
+                  );
+                }
+              })
+              .catch(error => console.error('Ошибка при сохранении пользователя:', error));
+          } else {
+            // Если пользователь уже существует, просто отправьте приветственное сообщение
+            ctx.reply(
+              'Добро пожаловать обратно!',
+              Markup.keyboard([
+                ['🔑 Регистрация в турнир', '🎮 Мои турниры']
+              ]).resize()
+            );
+          }
+        })
+        .catch(error => console.error('Ошибка при поиске пользователя:', error));
+    }
   });
+
+
 
   bot.command('admin', (ctx) => {
     ctx.reply('Пожалуйста, введите пароль:');
@@ -720,113 +729,188 @@ bot.command('/clear', (ctx) => {
           .catch(error => console.error('Ошибка при поиске опросов:', error));
       }
 
-
-
-
       
         // Проверяем, что callback_query начинается с 'vote_'
         if (ctx.callbackQuery.data.startsWith('vote_')) {
             // Извлекаем ID опроса и номер выбранного варианта из callback_query
             const [_, pollId, optionNumber] = ctx.callbackQuery.data.split('_');
-        
+          
             // Находим опрос по ID
             Poll.findById(pollId)
             .then(poll => {
-                if (poll) {
+              if (poll) {
                 // Проверьте, не истекло ли время голосования
                 if (new Date(poll.closingDate) > new Date()) {
-                    // Находим пользователя по тегу Telegram
-                    User.findOne({ telegramTag: ctx.from.username })
-                        .then(user => {
-                        if (user) {
-                            // Находим регистрацию пользователя на турнир
-                            Registration.findOne({ userId: user._id, tournamentId: poll.tournamentId })
-                            .then(registration => {
-                                if (registration) {
-                                // Находим голос пользователя в этом опросе
-                                Vote.findOne({ pollId: poll._id, userId: user._id })
-                                    .then(vote => {
-                                    if (vote) {
-                                        // Если голос найден, обновляем его
-                                        vote.optionNumber = optionNumber;
-                                        vote.optionText = poll.options[optionNumber];
-                                        vote.save()
-                                        .then(() => {
-                                            ctx.answerCbQuery('Ваш голос был обновлен!');
-        
-                                            // Получаем текст существующего сообщения
-                                            let oldText = ctx.callbackQuery.message.text;
-                                            // Получаем существующие кнопки
-                                            const oldMarkup = ctx.callbackQuery.message.reply_markup;
-                                            // Удаляем старую информацию о голосе, если она есть
-                                            const voteInfoIndex = oldText.indexOf('\n\n✅ Вы уже проголосовали в этом опросе.');
-                                            if (voteInfoIndex !== -1) {
-                                            oldText = oldText.substring(0, voteInfoIndex);
-                                            }
-                                            // Добавляем новую информацию о голосе
-                                            const newText = `${oldText}\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[optionNumber].text}`;
-                                            // Проверяем, отличается ли новый текст от старого
-                                            if (newText !== ctx.callbackQuery.message.text) {
-                                            // Обновляем текст сообщения
-                                            ctx.editMessageText(newText, { reply_markup: oldMarkup })
-                                                .catch(error => console.error('Ошибка при обновлении текста сообщения:', error));
-}
-        
-                                        })
-                                        .catch(error => console.error('Ошибка при обновлении голоса:', error));
-                                    } else {
-                                        // Если голос не найден, создаем новый
-                                        let newVote = new Vote({
-                                        tournamentId: poll.tournamentId,
-                                        tournamentName: poll.name,
-                                        pollId: poll._id,
-                                        pollName: poll.name,
-                                        userId: user._id,
-                                        userTag: ctx.from.username,
-                                        userName: ctx.from.first_name,
-                                        buyIn: registration.buyIn,
-                                        optionNumber: optionNumber,
-                                        optionText: poll.options[optionNumber]
-                                        });
-        
-                                        newVote.save()
-                                        .then(() => {
-                                            ctx.answerCbQuery('Ваш голос был учтен!');
-        
-                                            // Получаем текст существующего сообщения
-                                            let oldText = ctx.callbackQuery.message.text;
-                                            // Получаем существующие кнопки
-                                            const oldMarkup = ctx.callbackQuery.message.reply_markup;
-                                            // Добавляем информацию о голосе
-                                            const newText = `${oldText}\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[optionNumber].text}`;
-                                            // Обновляем текст сообщения
-                                            ctx.editMessageText(newText, { reply_markup: oldMarkup })
-                                            .catch(error => console.error('Ошибка при обновлении текста сообщения:', error));
-                                            
-                                        })
-                                        .catch(error => console.error('Ошибка при сохранении голоса:', error));
-                                    }
+                  // Находим пользователя по тегу Telegram
+                  User.findOne({ telegramTag: ctx.from.username })
+                    .then(user => {
+                      if (user) {
+                        // Находим регистрацию пользователя на турнир
+                        Registration.findOne({ userId: user._id, tournamentId: poll.tournamentId })
+                          .then(registration => {
+                            if (registration) {
+                              // Находим голос пользователя в этом опросе
+                              Vote.findOne({ pollId: poll._id, userId: user._id })
+                                .then(vote => {
+                                  if (vote) {
+                                    // Если голос найден, обновляем его
+                                    vote.optionNumber = optionNumber;
+                                    vote.optionText = poll.options[optionNumber].text;
+                                    vote.optionPoints = poll.options[optionNumber].points; // записываем количество очков
+                                    vote.save()
+                                    .then(() => {
+                                      ctx.answerCbQuery('Ваш голос был обновлен!');
+          
+                                      // Получаем текст существующего сообщения
+                                      let oldText = ctx.callbackQuery.message.text;
+                                      // Получаем существующие кнопки
+                                      const oldMarkup = ctx.callbackQuery.message.reply_markup;
+                                      // Удаляем старую информацию о голосе, если она есть
+                                      const voteInfoIndex = oldText.indexOf('\n\n✅ Вы уже проголосовали в этом опросе.');
+                                      if (voteInfoIndex !== -1) {
+                                        oldText = oldText.substring(0, voteInfoIndex);
+                                      }
+                                      // Добавляем новую информацию о голосе
+                                      const newText = `${oldText}\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[optionNumber].text}`;
+                                      // Проверяем, отличается ли новый текст от старого
+                                      if (newText !== ctx.callbackQuery.message.text) {
+                                        // Обновляем текст сообщения
+                                        ctx.editMessageText(newText, { reply_markup: oldMarkup })
+                                          .catch(error => console.error('Ошибка при обновлении текста сообщения:', error));
+                                      }
+          
                                     })
-                                    .catch(error => console.error('Ошибка при поиске голоса:', error));
-                                } else {
-                                ctx.answerCbQuery('Вы не зарегистрированы на этот турнир.');
-                                }
-                            })
-                            .catch(error => console.error('Ошибка при поиске регистрации:', error));
-                        } else {
-                            ctx.answerCbQuery('Пользователь с таким тегом не найден.');
-                        }
-                        })
-                        .catch(error => console.error('Ошибка при поиске пользователя:', error));
+                                    .catch(error => console.error('Ошибка при обновлении голоса:', error));
+                                  } else {
+                                    // Если голос не найден, создаем новый
+                                    let newVote = new Vote({
+                                      tournamentId: poll.tournamentId,
+                                      tournamentName: poll.name,
+                                      pollId: poll._id,
+                                      pollName: poll.name,
+                                      userId: user._id,
+                                      userTag: ctx.from.username,
+                                      userName: ctx.from.first_name,
+                                      buyIn: registration.buyIn,
+                                      optionNumber: optionNumber,
+                                      optionText: poll.options[optionNumber].text,
+                                      optionPoints: poll.options[optionNumber].points // записываем количество очков
+                                    });
+          
+                                    newVote.save()
+                                    .then(() => {
+                                      ctx.answerCbQuery('Ваш голос был учтен!');
+          
+                                      // Получаем текст существующего сообщения
+                                      let oldText = ctx.callbackQuery.message.text;
+                                      // Получаем существующие кнопки
+                                      const oldMarkup = ctx.callbackQuery.message.reply_markup;
+                                      // Добавляем информацию о голосе
+                                      const newText = `${oldText}\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[optionNumber].text}`;
+                                      // Обновляем текст сообщения
+                                      ctx.editMessageText(newText, { reply_markup: oldMarkup })
+                                        .catch(error => console.error('Ошибка при обновлении текста сообщения:', error));
+          
+                                    })
+                                    .catch(error => console.error('Ошибка при сохранении голоса:', error));
+                                  }
+                                })
+                                .catch(error => console.error('Ошибка при поиске голоса:', error));
+                            } else {
+                              ctx.answerCbQuery('Вы не зарегистрированы на этот турнир.');
+                            }
+                          })
+                          .catch(error => console.error('Ошибка при поиске регистрации:', error));
+                      } else {
+                        ctx.answerCbQuery('Пользователь с таким тегом не найден.');
+                      }
+                    })
+                    .catch(error => console.error('Ошибка при поиске пользователя:', error));
                 } else {
-                    ctx.answerCbQuery('Извините, но время голосования в этом опросе уже истекло.');
+                  ctx.answerCbQuery('Извините, но время голосования в этом опросе уже истекло.');
                 }
-                } else {
+              } else {
                 ctx.answerCbQuery('Опрос не найден.');
-                }
+              }
             })
             .catch(error => console.error('Ошибка при поиске опроса:', error));
-        }
+          }
+
+
+
+
+          if (ctx.callbackQuery.data.startsWith('results_')) {
+            // Извлекаем ID турнира из callback_query
+            const [_, tournamentId] = ctx.callbackQuery.data.split('_');
+          
+            // Находим турнир по его ID
+            Tournament.findById(tournamentId)
+              .then(tournament => {
+                // Находим все опросы этого турнира
+                Poll.find({ tournamentId: tournamentId })
+                  .then(polls => {
+                    // Фильтруем опросы, оставляя только те, которые уже закрыты
+                    const closedPolls = polls.filter(poll => new Date(poll.closingDate) < new Date());
+          
+
+                    if (closedPolls.length === 0) {
+                        ctx.reply(`👀В турнире "${tournament.name}" пока нет закрытых опросов👀`);
+                    } else {
+                        // Отправляем вступительное сообщение пользователю с названием турнира
+                        ctx.reply(`💰👀 Результаты закрытых матчей в турнире "${tournament.name}".💰👀`);
+                                
+                        // Отправляем каждый закрытый опрос пользователю
+                        closedPolls.forEach(poll => {
+                            // Находим все голоса для этого опроса
+                            Vote.find({ pollId: poll._id })
+                            .then(votes => {
+                                // Создаем массив для хранения результатов голосования
+                                let voteResults = [];
+
+                                // Проходим по каждому варианту ответа в опросе
+                                poll.options.forEach((option, index) => {
+                                // Находим все голоса за этот вариант ответа
+                                const votesForOption = votes.filter(vote => vote.optionNumber === index);
+
+                                // Добавляем результаты голосования за этот вариант ответа в массив результатов
+                                voteResults.push({
+                                    optionText: option.text,
+                                    optionPoints: option.points,
+                                    votesCount: votesForOption.length
+                                });
+                                });
+
+                                // Сортируем результаты голосования по количеству голосов
+                                voteResults.sort((a, b) => b.votesCount - a.votesCount);
+
+                                // Формируем сообщение с результатами голосования
+                                let message = `*🥇 ${poll.name}*\n📝 ${poll.description}\n\n🕒 Время закрытия: ${poll.closingDate}\n\n👥 Результаты голосования:\n`;
+                                voteResults.forEach(result => {
+                                message += `\n${result.optionText}: ${result.votesCount} голосов (${result.optionPoints} очков)`;
+                                });
+
+                                // Формируем список всех пользователей, которые голосовали в опросе
+                                let votersList = '\n\n🔗 Ссылка на список голосовавших игроков и их выбор: ⬇️⬇️⬇️\n';
+
+                                // votes.forEach(vote => {
+                                //     votersList += `\nИгрок: ${vote.userName} Выбрал: ${poll.options[vote.optionNumber].text}`;
+                                // });
+
+                                // Добавляем список голосовавших пользователей к сообщению
+                                message += votersList;
+
+                                // Отправляем сообщение пользователю
+                                ctx.replyWithMarkdown(message);
+                            })
+                            .catch(error => console.error('Ошибка при поиске голосов:', error));
+                        });
+                    }
+
+                  })
+                  .catch(error => console.error('Ошибка при поиске опросов:', error));
+              })
+              .catch(error => console.error('Ошибка при поиске турнира:', error));
+          }
 
   });
 
