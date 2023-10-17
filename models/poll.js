@@ -32,6 +32,10 @@ const PollSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'Tournament',
     required: true
+  },
+  result: {
+    type: String,
+    default: ''
   }
 });
 
