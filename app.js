@@ -34,9 +34,10 @@ bot.start((ctx) => {
             let newUser = new User({
               telegramName: ctx.from.first_name + ' ' + ctx.from.last_name, // Используйте полное имя
               telegramTag: ctx.from.username,
-              walletNumber: '' // Оставьте номер кошелька пустым
+              walletNumber: '', // Оставьте номер кошелька пустым
+              chatId: ctx.chat.id // сохранение chatId
             });
-    
+  
             // Сохранение нового пользователя в базе данных
             newUser.save()
               .then(() => {
@@ -113,12 +114,60 @@ bot.command('/clear', (ctx) => {
           ctx.session.isAdmin = true;
           ctx.reply('Привет, админ!', Markup.keyboard([
             ['Создать турнир', 'Показать турниры'],
-            ['Создать опрос', 'Запросы на участие'] // Добавьте новую кнопку здесь
+            ['Создать опрос', 'Запросы на участие'],
+            ['Создать оповещение'] // Добавьте новую кнопку здесь
           ]).resize());
         } else {
           ctx.reply('Неверный пароль.');
         }
         ctx.session.awaitingPassword = false;
+      } else if (ctx.message.text === 'Создать оповещение') {
+        // Получите список всех турниров
+        Tournament.find().then(tournaments => {
+          // Создайте массив кнопок. Первая кнопка - "Для всех пользователей", остальные - для каждого турнира
+          const buttons = ['Для всех пользователей'].concat(tournaments.map(tournament => tournament.name));
+          ctx.reply('Выберите, кому хотите отправить оповещение:', Markup.keyboard(buttons).oneTime().resize());
+          ctx.session.awaitingNotificationRecipient = true;
+        }).catch(err => {
+          console.log(err);
+        });
+      } else if (ctx.session.awaitingNotificationRecipient) {
+        ctx.session.notificationRecipient = ctx.message.text;
+        ctx.reply('Введите текст оповещения:');
+        ctx.session.awaitingNotificationText = true;
+        ctx.session.awaitingNotificationRecipient = false;
+      } else if (ctx.session.awaitingNotificationText) {
+        const notificationText = ctx.message.text;
+        ctx.session.awaitingNotificationText = false;
+      
+        if (ctx.session.notificationRecipient === 'Для всех пользователей') {
+          // Если получатель - "Для всех пользователей", отправьте уведомление всем пользователям
+          User.find().then(users => {
+            users.forEach(user => {
+              bot.telegram.sendMessage(user.chatId, notificationText);
+            });
+          }).catch(err => {
+            console.log(err);
+          });
+        } else {
+          // Если получатель - игроки турнира, отправьте уведомление только зарегистрированным в этом турнире пользователям
+          const tournamentName = ctx.session.notificationRecipient; // Удалите "Для игроков " из начала строки
+          Tournament.findOne({ name: tournamentName }).then(tournament => {
+            Registration.find({ tournamentId: tournament._id }).then(registrations => {
+              registrations.forEach(registration => {
+                User.findOne({ _id: registration.userId }).then(user => {
+                  bot.telegram.sendMessage(user.chatId, notificationText);
+                }).catch(err => {
+                  console.log(err);
+                });
+              });
+            }).catch(err => {
+              console.log(err);
+            });
+          }).catch(err => {
+            console.log(err);
+          });
+        }
       } else if (ctx.message.text === 'Создать турнир') {
         ctx.reply('Введите название турнира:');
         ctx.session.awaitingTournamentData = { step: 'name' };

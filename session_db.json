@@ -4,7 +4,10 @@
       "id": "440948496:440948496",
       "data": {
         "awaitingPassword": false,
-        "isAdmin": true
+        "isAdmin": false,
+        "awaitingNotificationText": false,
+        "awaitingNotificationRecipient": false,
+        "notificationRecipient": "Для всех пользователей"
       }
     },
     {

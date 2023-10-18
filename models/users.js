@@ -17,6 +17,10 @@ const UserSchema = new Schema({
   },
   walletNumber: {
     type: String
+  },
+  chatId: { // новое поле для хранения идентификатора чата
+    type: Number,
+    required: true
   }
 });
 
