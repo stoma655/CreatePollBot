@@ -1,5 +1,6 @@
 const { Telegraf, Markup } = require('telegraf');
-const LocalSession = require('telegraf-session-local');
+// const LocalSession = require('telegraf-session-local');
+
 const fs = require('fs');
 const path = require('path');
 const connectDB = require('./db');
@@ -15,18 +16,73 @@ const bot = new Telegraf('6302702257:AAHG8kSyIOcWSBBD3aAeiMR_dcO1OcfGp-U');
 
 // const session = new LocalSession({ database: 'session_db.json' });
 // bot.use(session.middleware());
-const session = new LocalSession({
-  storage: LocalSession.storageMemory
-});
 
-bot.use(session.middleware());
+// bot.use((new LocalSession({ storage: LocalSession.storageMemory })).middleware());
+
+// async function setState(ctx, key, value) {
+//   let user = await User.findOne({ telegramTag: ctx.from.username })
+//   .catch(err => {
+//       console.error(err);
+//   });
+//   if (user) {
+//     user.state[key] = value; // добавляем новый ключ и значение
+//     user.markModified('state'); // указываем Mongoose, что объект был изменен
+//     await user.save(); // сохраняем изменения в базе данных
+//   }
+// };
+
+async function setState(ctx, key, value, subKey) {
+  let user = await User.findOne({ telegramTag: ctx.from.username })
+  .catch(err => {
+      console.error(err);
+  });
+  if (user) {
+    if (subKey) { // если subKey предоставлен
+      if (!user.state[key]) { // если свойства еще нет, создаем его
+        user.state[key] = {};
+      }
+      user.state[key][subKey] = value; // добавляем новый ключ и значение внутри объекта
+    } else { // если subKey не предоставлен
+      user.state[key] = value; // добавляем новый ключ и значение
+    }
+    user.markModified('state'); // указываем Mongoose, что объект был изменен
+    await user.save(); // сохраняем изменения в базе данных
+  }
+};
+
+
+async function getState(ctx) {
+  let user = await User.findOne({ telegramTag: ctx.from.username })
+  .catch(err => {
+      console.error(err);
+  });
+  ctx.state = user.state;
+  return ctx;
+};
+
+
+async function deleteStateProperty(ctx, key, subKey) {
+  let user = await User.findOne({ telegramTag: ctx.from.username })
+  .catch(err => {
+      console.error(err);
+  });
+  if (user && user.state[key]) {
+    if (subKey) { // если subKey предоставлен
+      delete user.state[key][subKey]; // удаляем свойство внутри объекта
+    } else { // если subKey не предоставлен
+      delete user.state[key]; // удаляем свойство
+    }
+    user.markModified('state'); // указываем Mongoose, что объект был изменен
+    await user.save(); // сохраняем изменения в базе данных
+  }
+};
 
 
 // Пароль админа
 const ADMIN_PASSWORD = 'ss';
 
-bot.start((ctx) => {
-  ctx.session.create = true;
+bot.start(async (ctx) => {
+    ctx = await getState(ctx);
     // Проверяем наличие username
     if (!ctx.from.username) {
       // Если username отсутствует, отправляем сообщение пользователю
@@ -42,13 +98,14 @@ bot.start((ctx) => {
               telegramName: ctx.from.first_name + ' ' + ctx.from.last_name, // Используйте полное имя
               telegramTag: ctx.from.username,
               walletNumber: '', // Оставьте номер кошелька пустым
-              chatId: ctx.chat.id // сохранение chatId
+              chatId: ctx.chat.id, // сохранение chatId
+              state: {isAdmin: false}
             });
   
             // Сохранение нового пользователя в базе данных
             newUser.save()
               .then(() => {
-                if (ctx.session.isAdmin) {
+                if (ctx.state.isAdmin) {
                   ctx.reply('Привет, админ!', Markup.keyboard([
                     ['Создать турнир', 'Показать турниры'],
                     ['Создать опрос']
@@ -77,28 +134,36 @@ bot.start((ctx) => {
     }
   });
 
+  bot.command('test', (ctx) => {
+    setState(ctx, 'newkey', 'vall');
+  }); 
 
 
   bot.command('admin', (ctx) => {
     ctx.reply('Пожалуйста, введите пароль:');
-    ctx.session.awaitingPassword = true;
+    // ctx.session.awaitingPassword = true;
+    setState(ctx, 'awaitingPassword', true);
   });
 
 bot.command('user', (ctx) => {
-  ctx.session.isAdmin = false;
+  // ctx.session.isAdmin = false;
+  setState(ctx, 'isAdmin', false);
   ctx.reply('Теперь вы в режиме пользователя.');
 });
 
-bot.command('/clear', (ctx) => {
-    // Очистите сессию пользователя
-    ctx.session = null;
-    ctx.reply('Сессия успешно очищена!');
-  });
+// bot.command('/clear', (ctx) => {
+//     // Очистите сессию пользователя
+//     ctx.session = null;
+//     ctx.reply('Сессия успешно очищена!');
+//   });
   
-  bot.on('text', (ctx) => {
-    if (ctx.session.awaitingPassword) {
+  bot.on('text', async (ctx) => {
+    ctx = await getState(ctx);
+    // if (ctx.session.awaitingPassword) {
+    if (ctx.state.awaitingPassword) {
       if (ctx.message.text === ADMIN_PASSWORD) {
-        ctx.session.isAdmin = true;
+        console.log('установили админа в тру')
+        await setState(ctx, 'isAdmin', true);
         ctx.reply('Привет, админ!', Markup.keyboard([
           ['Создать турнир', 'Показать турниры'],
           ['Создать опрос', 'Запросы на участие'],
@@ -107,16 +172,19 @@ bot.command('/clear', (ctx) => {
       } else {
         ctx.reply('Неверный пароль.');
       }
-      ctx.session.awaitingPassword = false;
-    } else if (ctx.session.isAdmin) {
+      setState(ctx, 'awaitingPassword', false);
+      // ctx.session.awaitingPassword = false;
+    // } else if (ctx.session.isAdmin) {
+    } else if (ctx.state.isAdmin) {
       handleAdminText(ctx);
     } else {
       handleUserText(ctx);
     }
   });
 
-  function handleAdminText(ctx) {
-    if (ctx.session.awaitingPassword) {
+  async function handleAdminText(ctx) {
+    // if (ctx.session.awaitingPassword) {
+    if (ctx.state.awaitingPassword) {
         if (ctx.message.text === ADMIN_PASSWORD) {
           ctx.session.isAdmin = true;
           ctx.reply('Привет, админ!', Markup.keyboard([
@@ -127,27 +195,36 @@ bot.command('/clear', (ctx) => {
         } else {
           ctx.reply('Неверный пароль.');
         }
-        ctx.session.awaitingPassword = false;
+        setState(ctx, 'awaitingPassword', false);
+        // ctx.session.awaitingPassword = false;
       } else if (ctx.message.text === 'Создать оповещение') {
         // Получите список всех турниров
         Tournament.find().then(tournaments => {
           // Создайте массив кнопок. Первая кнопка - "Для всех пользователей", остальные - для каждого турнира
           const buttons = ['Для всех пользователей'].concat(tournaments.map(tournament => tournament.name));
           ctx.reply('Выберите, кому хотите отправить оповещение:', Markup.keyboard(buttons).oneTime().resize());
-          ctx.session.awaitingNotificationRecipient = true;
+          setState(ctx, 'awaitingNotificationRecipient', true)
+          // ctx.session.awaitingNotificationRecipient = true;
         }).catch(err => {
           console.log(err);
         });
-      } else if (ctx.session.awaitingNotificationRecipient) {
-        ctx.session.notificationRecipient = ctx.message.text;
+      // } else if (ctx.session.awaitingNotificationRecipient) {
+      } else if (ctx.state.awaitingNotificationRecipient) {
+        // ctx.session.notificationRecipient = ctx.message.text;
+        setState(ctx, 'notificationRecipient', ctx.message.text);
         ctx.reply('Введите текст оповещения:');
-        ctx.session.awaitingNotificationText = true;
-        ctx.session.awaitingNotificationRecipient = false;
-      } else if (ctx.session.awaitingNotificationText) {
+        setState(ctx, 'awaitingNotificationText', true);
+        setState(ctx, 'awaitingNotificationRecipient', false);
+        // ctx.session.awaitingNotificationText = true;
+        // ctx.session.awaitingNotificationRecipient = false;
+      // } else if (ctx.session.awaitingNotificationText) {
+      } else if (ctx.state.awaitingNotificationText) {
         const notificationText = ctx.message.text;
-        ctx.session.awaitingNotificationText = false;
+        // ctx.session.awaitingNotificationText = false;
+        setState(ctx, 'awaitingNotificationText', false);
       
-        if (ctx.session.notificationRecipient === 'Для всех пользователей') {
+        // if (ctx.session.notificationRecipient === 'Для всех пользователей') {
+        if (ctx.state.notificationRecipient === 'Для всех пользователей') {
           // Если получатель - "Для всех пользователей", отправьте уведомление всем пользователям
           User.find().then(users => {
             users.forEach(user => {
@@ -158,7 +235,8 @@ bot.command('/clear', (ctx) => {
           });
         } else {
           // Если получатель - игроки турнира, отправьте уведомление только зарегистрированным в этом турнире пользователям
-          const tournamentName = ctx.session.notificationRecipient; // Удалите "Для игроков " из начала строки
+          // const tournamentName = ctx.session.notificationRecipient;
+          const tournamentName = ctx.state.notificationRecipient; // Удалите "Для игроков " из начала строки
           Tournament.findOne({ name: tournamentName }).then(tournament => {
             Registration.find({ tournamentId: tournament._id }).then(registrations => {
               registrations.forEach(registration => {
@@ -177,70 +255,95 @@ bot.command('/clear', (ctx) => {
         }
       } else if (ctx.message.text === 'Создать турнир') {
         ctx.reply('Введите название турнира:');
-        ctx.session.awaitingTournamentData = { step: 'name' };
-      } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'name') {
-          ctx.session.awaitingTournamentData.name = ctx.message.text;
+        setState(ctx, 'awaitingTournamentData', { step: 'name' })
+        // ctx.session.awaitingTournamentData = { step: 'name' };
+      // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'name') {
+      } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'name') {
+          // ctx.session.awaitingTournamentData.name = ctx.message.text;
+          setState(ctx, 'awaitingTournamentData', 'name', ctx.message.text);
           ctx.reply('Введите описание турнира:');
-          ctx.session.awaitingTournamentData.step = 'description';
-        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'description') {
-          ctx.session.awaitingTournamentData.description = ctx.message.text;
+          setState(ctx, 'awaitingTournamentData', 'step', 'description');
+          // ctx.session.awaitingTournamentData.step = 'description';
+        // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'description') {
+        } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'description') {
+          // ctx.session.awaitingTournamentData.description = ctx.message.text;
+          setState(ctx, 'awaitingTournamentData', 'description', ctx.message.text);
 
           ctx.reply('Пожалуйста, введите URL изображения турнира:');
-            ctx.session.awaitingTournamentData.step = 'imageUrl';
-
-        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'imageUrl') {
-            ctx.session.awaitingTournamentData.imageUrl = ctx.message.text;
+            // ctx.session.awaitingTournamentData.step = 'imageUrl';
+          setState(ctx, 'awaitingTournamentData', 'step', 'imageUrl');
+        // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'imageUrl') {
+        } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'imageUrl') {
+            // ctx.session.awaitingTournamentData.imageUrl = ctx.message.text;
+            setState(ctx, 'awaitingTournamentData', 'imageUrl', ctx.message.text);
 
             // Переходите к следующему шагу
             ctx.reply('Введите дату начала турнира в формате ГГГГ-ММ-ДД:');
-            ctx.session.awaitingTournamentData.step = 'startDate';
-          } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'startDate') {
+            // ctx.session.awaitingTournamentData.step = 'startDate';
+            setState(ctx, 'awaitingTournamentData', 'step', 'startDate');
+          // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'startDate') {
+          } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'startDate') {
             const startDate = new Date(ctx.message.text);
             if (isNaN(startDate)) {
               ctx.reply('Неверный формат даты. Пожалуйста, введите дату начала турнира в формате ГГГГ-ММ-ДД:');
             } else {
-              ctx.session.awaitingTournamentData.startDate = startDate;
+              setState(ctx, 'awaitingTournamentData', 'startDate', startDate);
+              // ctx.session.awaitingTournamentData.startDate = startDate;
               ctx.reply('Введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
-              ctx.session.awaitingTournamentData.step = 'endDate';
+              setState(ctx, 'awaitingTournamentData', 'step', 'endDate');
+              // ctx.session.awaitingTournamentData.step = 'endDate';
             }
-        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'endDate') {
+        // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'endDate') {
+        } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'endDate') {
             const endDate = new Date(ctx.message.text);
             if (isNaN(endDate)) {
               ctx.reply('Неверный формат даты. Пожалуйста, введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
             } else {
-              ctx.session.awaitingTournamentData.endDate = endDate;
+              setState(ctx, 'awaitingTournamentData', 'endDate', endDate)
+              // ctx.session.awaitingTournamentData.endDate = endDate;
               ctx.reply('Введите бай-ины через запятую:');
-              ctx.session.awaitingTournamentData.step = 'buyIns';
+              setState(ctx, 'awaitingTournamentData', 'step', 'buyIns');
+              // ctx.session.awaitingTournamentData.step = 'buyIns';
 
             }
 
-        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'buyIns') {
-            ctx.session.awaitingTournamentData.buyIns = ctx.message.text.split(',');
+        // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'buyIns') {
+        } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'buyIns') {
+            setState(ctx, 'awaitingTournamentData', 'buyIns', ctx.message.text.split(','))
+            // ctx.session.awaitingTournamentData.buyIns = ctx.message.text.split(',');
             ctx.reply('Турнир является публичным или приватным?', Markup.keyboard(['public', 'private']).oneTime().resize());
-            ctx.session.awaitingTournamentData.step = 'type';
-          } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'type') {
-            ctx.session.awaitingTournamentData.type = ctx.message.text;
+            // ctx.session.awaitingTournamentData.step = 'type';
+            setState(ctx, 'awaitingTournamentData', 'step', 'type');
+          // } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'type') {
+          } else if (ctx.state.awaitingTournamentData && ctx.state.awaitingTournamentData.step === 'type') {
+            // ctx.session.awaitingTournamentData.type = ctx.message.text;
+            setState(ctx, 'awaitingTournamentData', 'type', ctx.message.text);
             if (ctx.message.text.toLowerCase() === 'private') {
               ctx.reply('Введите пароль для регистрации в турнире:');
-              ctx.session.awaitingTournamentData.step = 'password';
+              setState(ctx, 'awaitingTournamentData', 'step', 'password')
+              // ctx.session.awaitingTournamentData.step = 'password';
             } else {
               // Создание турнира
               // Создание нового турнира
                 let newTournament = new Tournament({
-                    name: ctx.session.awaitingTournamentData.name,
-                    description: ctx.session.awaitingTournamentData.description,
-                    startDate: ctx.session.awaitingTournamentData.startDate,
-                    endDate: ctx.session.awaitingTournamentData.endDate,
-                    buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
-                    type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
+                    name: ctx.state.awaitingTournamentData.name,
+                    description: ctx.state.awaitingTournamentData.description,
+                    startDate: ctx.state.awaitingTournamentData.startDate,
+                    endDate: ctx.state.awaitingTournamentData.endDate,
+                    buyIns: ctx.state.awaitingTournamentData.buyIns, // добавлено новое поле
+                    type: ctx.state.awaitingTournamentData.type, // добавлено новое поле
                     password: '', // добавлено новое поле
-                    image: ctx.session.awaitingTournamentData.imageUrl
+                    image: ctx.state.awaitingTournamentData.imageUrl
                 });
 
                 newTournament.save()
                     .then(() => {
                     ctx.reply('Турнир успешно создан!');
-                    delete ctx.session.awaitingTournamentData;
+
+
+                    deleteStateProperty(ctx, 'awaitingTournamentData');
+
+                    // delete ctx.session.awaitingTournamentData;
                     })
                     .catch(error => console.error('Ошибка при сохранении турнира:', error));
             }
@@ -462,11 +565,14 @@ bot.command('/clear', (ctx) => {
         .catch(error => console.error('Ошибка при поиске регистраций:', error));
       } else if (ctx.session.awaitingBuyIn) {
         const buyIn = ctx.message.text;
+        console.log('Получили байн')
         if (buyIn === 'Фри') {
+          console.log('Байин фри');
           // Найти пользователя по тегу Telegram
           User.findOne({ telegramTag: ctx.from.username })
             .then(user => {
               if (user) {
+                console.log('Нашли пользователя')
                 // Создание новой регистрации
                 let newRegistration = new Registration({
                   userId: user._id, // Используйте ID найденного пользователя
@@ -477,7 +583,7 @@ bot.command('/clear', (ctx) => {
                   walletNumber: buyIn === 'Фри' ? '' : walletNumber,
                   status: 'approved'
                 });
-    
+                console.log('создали регистрацию начинаем регистрировать')
                 // Сохранение новой регистрации в базе данных
                 newRegistration.save()
                   .then(() => {
@@ -733,18 +839,19 @@ bot.command('/clear', (ctx) => {
         const tournamentId = ctx.callbackQuery.data.slice(5);
         // Найти турнир по ID
         Tournament.findById(tournamentId)
-          .then(tournament => {
+          .then(async tournament => {
             if (tournament) {
                 // Проверьте, является ли турнир приватным
                 ///
                 if (tournament.type === "private") {
                     // Если турнир приватный, попросите пользователя ввести пароль
                     // продолжение регистрации в приват находится в опбработчике текста пароля от юзера
-                    ctx.reply('Этот турнир является приватным. Пожалуйста, введите пароль для регистрации.');
+                    await ctx.reply('Этот турнир является приватным. Пожалуйста, введите пароль для регистрации.');
                     ctx.session.awaitingTournamentPassword = {
                       tournamentId: tournamentId
                     };
                   } else {
+                    console.log('публичный');
                     // Если турнир публичный, продолжите процесс регистрации как обычно
                                   // Проверить, есть ли уже регистрация на этот турнир
                     Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username })
@@ -753,12 +860,23 @@ bot.command('/clear', (ctx) => {
                         // Если регистрация уже существует, сообщить пользователю
                         ctx.reply('🎟️ Вы уже зарегистрированы на этот турнир.');
                         } else {
+                          console.log('Попали на выбор байина')
                         // Если регистрации нет, позволить пользователю зарегистрироваться
-                        ctx.reply('Выберите бай-ин:', Markup.keyboard(tournament.buyIns).oneTime().resize());
                         ctx.session.awaitingBuyIn = { 
                             tournamentId: tournament._id,
-                            tournamentTitle: tournament.name // Сохраните название турнира
-                        };
+                            tournamentTitle: tournament.name
+                          };
+                
+                        setTimeout(() => {
+                          ctx.reply('Выберите бай-ин:', Markup.keyboard(tournament.buyIns).oneTime().resize());
+                        }, 300)
+                        
+
+                        console.log(tournament._id)
+                        console.log(tournament.name)
+                   
+                          
+                        
                         }
                     })
                     .catch(error => console.error('Ошибка при поиске регистрации:', error));
@@ -793,10 +911,12 @@ bot.command('/clear', (ctx) => {
               // Если опросов нет, сообщить об этом
               ctx.reply('У этого турнира пока нет матчей.');
             } else {
+              let activePolls = false; 
               // Отправьте каждый опрос пользователю
               for (const poll of polls) { 
                 // Проверьте, не истекло ли время голосования
                 if (new Date(poll.closingDate) > new Date()) { 
+                  activePolls = true;
                   let options = '';
                   poll.options.forEach((option, index) => {
                     options += `Вариант ${index + 1}: ${option.text} - ${option.points} points\n`;
@@ -829,6 +949,13 @@ bot.command('/clear', (ctx) => {
                   );
                 }
               }
+
+              if (!activePolls) {
+                // Если нет активных опросов, отправьте сообщение об этом
+                ctx.reply('Нет актуальных матчей на данный момент.');
+              }
+
+
             }
           })
           .catch(error => console.error('Ошибка при поиске опросов:', error));
