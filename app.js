@@ -8,6 +8,7 @@ const Poll = require('./models/poll');
 const User = require('./models/users');
 const Registration = require('./models/registrations');
 const Vote = require('./models/votes');
+
 // const ChatUser = require('./models/chatUser');
 
 
@@ -781,6 +782,10 @@ bot.command('/clear', (ctx) => {
       ///////////
 
 
+
+
+
+
       if (ctx.callbackQuery.data.startsWith('bets_')) {
         const tournamentId = ctx.callbackQuery.data.slice(5);
         // Найдите все опросы для этого турнира
@@ -789,46 +794,50 @@ bot.command('/clear', (ctx) => {
             const tournament = await Tournament.findById(tournamentId);
             // Отправьте вводное сообщение с названием турнира
             await ctx.reply(`🚨🎲 Матчи для голосования в турнире "${tournament.name}".🎲🚨 Будьте внимательны и удачи! 💸💸💸`);
-            if (polls.length === 0) {
-              // Если опросов нет, сообщить об этом
-              ctx.reply('У этого турнира пока нет матчей.');
-            } else {
-              // Отправьте каждый опрос пользователю
-              for (const poll of polls) { 
-                // Проверьте, не истекло ли время голосования
-                if (new Date(poll.closingDate) > new Date()) { 
-                  let options = '';
-                  poll.options.forEach((option, index) => {
-                    options += `Вариант ${index + 1}: ${option.text} - ${option.points} points\n`;
-                  });
-                  const buttons = poll.options.map((option, index) => Markup.button.callback(`${option.text} - ${option.points} points`, `vote_${poll._id}_${index}`));
-                  
-                  // Найдите голос пользователя в этом опросе
-                  const vote = await Vote.findOne({ pollId: poll._id, userTag: ctx.from.username }); 
-                  
-                  let voteInfo = '';
-                  if (vote) {
-                    // Если голос найден, добавьте информацию о голосе
-                    voteInfo = `\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[vote.optionNumber].text}`;
-                  }
-                  
-                  // Рассчитайте оставшееся время до закрытия опроса
-                  const timeLeft = new Date(poll.closingDate) - new Date();
-                  const daysLeft = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-                  const hoursLeft = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                  const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                  
-                  await ctx.replyWithMarkdown( 
-                    `📊 Турнир: ${tournament.name}\n\n` +
-                    `🔥 Матч: ${poll.name}\n` +
-                    `📋 Описание матча: ${poll.description}\n\n` +
-                    `${options}` +
-                    `\n\n⏰ Опрос закроется через: ${daysLeft} дней ${hoursLeft} часов ${minutesLeft} минут` +
-                    voteInfo, // Переместите voteInfo сюда
-                    Markup.inlineKeyboard(buttons, { columns: 1 })
-                  );
+            
+            let activePollsExist = false; // Добавьте флаг для отслеживания активных опросов
+    
+            // Отправьте каждый опрос пользователю
+            for (const poll of polls) { 
+              // Проверьте, не истекло ли время голосования
+              if (new Date(poll.closingDate) > new Date()) { 
+                activePollsExist = true; // Если опрос активен, установите флаг в true
+                let options = '';
+                poll.options.forEach((option, index) => {
+                  options += `Вариант ${index + 1}: ${option.text} - ${option.points} points\n`;
+                });
+                const buttons = poll.options.map((option, index) => Markup.button.callback(`${option.text} - ${option.points} points`, `vote_${poll._id}_${index}`));
+                
+                // Найдите голос пользователя в этом опросе
+                const vote = await Vote.findOne({ pollId: poll._id, userTag: ctx.from.username }); 
+                
+                let voteInfo = '';
+                if (vote) {
+                  // Если голос найден, добавьте информацию о голосе
+                  voteInfo = `\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[vote.optionNumber].text}`;
                 }
+                
+                // Рассчитайте оставшееся время до закрытия опроса
+                const timeLeft = new Date(poll.closingDate) - new Date();
+                const daysLeft = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                const hoursLeft = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                
+                await ctx.replyWithMarkdown( 
+                  `📊 Турнир: ${tournament.name}\n\n` +
+                  `🔥 Матч: ${poll.name}\n` +
+                  `📋 Описание матча: ${poll.description}\n\n` +
+                  `${options}` +
+                  `\n\n⏰ Опрос закроется через: ${daysLeft} дней ${hoursLeft} часов ${minutesLeft} минут` +
+                  voteInfo, // Переместите voteInfo сюда
+                  Markup.inlineKeyboard(buttons, { columns: 1 })
+                );
+                // ... остальной код ...
               }
+            }
+    
+            if (!activePollsExist) { // Если активных опросов нет, отправьте соответствующее сообщение
+              ctx.reply('На данный момент у этого турнира нет актуальных матчей.');
             }
           })
           .catch(error => console.error('Ошибка при поиске опросов:', error));
@@ -966,49 +975,36 @@ bot.command('/clear', (ctx) => {
                                 
                         // Отправляем каждый закрытый опрос пользователю
                         closedPolls.forEach(poll => {
-                            // Находим все голоса для этого опроса
-                            Vote.find({ pollId: poll._id })
-                            .then(votes => {
-                                // Создаем массив для хранения результатов голосования
-                                let voteResults = [];
-
-                                // Проходим по каждому варианту ответа в опросе
-                                poll.options.forEach((option, index) => {
-                                // Находим все голоса за этот вариант ответа
-                                const votesForOption = votes.filter(vote => vote.optionNumber === index);
-
-                                // Добавляем результаты голосования за этот вариант ответа в массив результатов
-                                voteResults.push({
-                                    optionText: option.text,
-                                    optionPoints: option.points,
-                                    votesCount: votesForOption.length
-                                });
-                                });
-
-                                // Сортируем результаты голосования по количеству голосов
-                                voteResults.sort((a, b) => b.votesCount - a.votesCount);
-
-                                // Формируем сообщение с результатами голосования
-                                let message = `*🥇 ${poll.name}*\n📝 ${poll.description}\n\n🕒 Время закрытия: ${poll.closingDate}\n\n👥 Результаты голосования:\n`;
-                                voteResults.forEach(result => {
-                                message += `\n${result.optionText}: ${result.votesCount} голосов (${result.optionPoints} очков)`;
-                                });
-
-                                // Формируем список всех пользователей, которые голосовали в опросе
-                                let votersList = '\n\n🔗 Ссылка на список голосовавших игроков и их выбор: ⬇️⬇️⬇️\n';
-
-                                // votes.forEach(vote => {
-                                //     votersList += `\nИгрок: ${vote.userName} Выбрал: ${poll.options[vote.optionNumber].text}`;
-                                // });
-
-                                // Добавляем список голосовавших пользователей к сообщению
-                                message += votersList;
-
-                                // Отправляем сообщение пользователю
-                                ctx.replyWithMarkdown(message);
-                            })
-                            .catch(error => console.error('Ошибка при поиске голосов:', error));
-                        });
+                          Vote.find({ pollId: poll._id })
+                          .then(votes => {
+                              let voteResults = [];
+                              poll.options.forEach((option, index) => {
+                                  const votesForOption = votes.filter(vote => vote.optionNumber === index);
+                                  voteResults.push({
+                                      optionText: option.text,
+                                      optionPoints: option.points,
+                                      votesCount: votesForOption.length
+                                  });
+                              });
+                              voteResults.sort((a, b) => b.votesCount - a.votesCount);
+                              let message = `*🥇 ${poll.name}*\n📝 ${poll.description}\n\n🕒 Время закрытия: ${poll.closingDate}\n\n👥 Результаты голосования:\n`;
+                              voteResults.forEach(result => {
+                                  message += `\n${result.optionText}: ${result.votesCount} голосов (${result.optionPoints} очков)`;
+                              });
+                      
+                              if (poll.result) {
+                                  message += '\n\n✅ Верный вариант ответа указан.';
+                                  // Создаем кнопку "Получить результаты"
+                                  ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
+                                      Markup.button.callback('Получить результаты', `get_result_html_${poll._id}`)
+                                  ]));
+                              } else {
+                                  message += '\n\n🔜 Скоро результаты голосования станут доступны.';
+                                  ctx.replyWithMarkdown(message);
+                              }
+                          })
+                          .catch(error => console.error('Ошибка при поиске голосов:', error));
+                      });
                     }
 
                   })
@@ -1016,6 +1012,159 @@ bot.command('/clear', (ctx) => {
               })
               .catch(error => console.error('Ошибка при поиске турнира:', error));
           }
+
+
+
+
+
+          if (ctx.callbackQuery.data.startsWith('get_result_html')) {
+            const pollId = ctx.callbackQuery.data.split('_')[3];
+            console.log(pollId)
+        
+            Poll.findById(pollId)
+            .then(poll => {
+                // Находим турнир по его ID
+                Tournament.findById(poll.tournamentId)
+                .then(tournament => {
+                    // Теперь у нас есть имя турнира
+                    const tournamentName = tournament.name;
+        
+                    Vote.find({ pollId: poll._id })
+                    .then(votes => {
+
+                      // Определение стилей CSS
+                      let styles = `
+                      body { font-family: Arial, sans-serif; }
+                      table { border-collapse: collapse; }
+                      td, th { border: 1px solid #ddd; padding: 8px; }
+                      `;
+
+                      let html = `<html>\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<style>\n${styles}\n</style>\n</head>\n<body>\n<h1>${tournamentName}</h1>\n<h2>${poll.name}</h2>\n<table>\n<tr><th>Имя</th><th>Выбранный ответ</th></tr>\n`;
+
+                      votes.forEach(vote => {
+                          html += `<tr><td>${vote.userName}</td><td>${poll.options[vote.optionNumber].text}</td></tr>\n`;
+                      });
+
+                      html += '</table>\n</body>\n</html>';
+
+                      fs.writeFile('results.html', html, err => {
+                        if (err) {
+                            console.error('Ошибка при записи файла:', err);
+                        } else {
+                            // Отправляем сообщение в чат
+                            bot.telegram.sendMessage(ctx.chat.id, "Откройте этот файл в браузере для просмотра результатов.");
+
+                            // Отправляем файл в чат
+                            bot.telegram.sendDocument(ctx.chat.id, {
+                                source: fs.createReadStream(path.join(__dirname, 'results.html')),
+                                filename: 'results.html'
+                            });
+                        }
+                      });
+                    })
+                    .catch(error => console.error('Ошибка при поиске голосов:', error));
+                })
+                .catch(error => console.error('Ошибка при поиске турнира:', error));
+            })
+            .catch(error => console.error('Ошибка при поиске опроса:', error));
+        }
+
+
+
+
+        // Если данные начинаются с 'standings_', это запрос на турнирное положение
+        if (ctx.callbackQuery.data.startsWith('standings_')) {
+          const tournamentId = ctx.callbackQuery.data.split('_')[1];
+          console.log(tournamentId)
+      
+          Tournament.findById(tournamentId)
+          .then(tournament => {
+              Vote.find({ tournamentId: tournament._id })
+              .then(votes => {
+                  Poll.find({ tournamentId: tournament._id, result: { $ne: '' }, closingDate: { $lt: new Date() } })
+                  .then(polls => {
+                      let styles = `
+      body { font-family: Arial, sans-serif; }
+      table { border-collapse: collapse; }
+      td, th { border: 1px solid #ddd; padding: 8px; }
+      .correct { background-color: lightgreen; }
+      `;
+      
+                      let html = `<html>\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<style>\n${styles}\n</style>\n</head>\n<body>\n<h1>${tournament.name}</h1>\n<table>\n<tr><th>Имя</th>`;
+      
+                      polls.forEach(poll => {
+                          html += `<th colspan="2">${poll.name}</th>`;
+                      });
+      
+                      html += '</tr>\n<tr><th></th>';
+      
+                      polls.forEach(() => {
+                          html += `<th>Выбранный вариант</th><th>Очки</th>`;
+                      });
+      
+                      html += '</tr>\n';
+      
+                      let userNames = [...new Set(votes.map(vote => vote.userName))];
+      
+                      userNames.forEach(userName => {
+                          html += `<tr><td>${userName}</td>`;
+      
+                          polls.forEach(poll => {
+                              let userVote = votes.find(vote => vote.userName === userName && vote.pollId.equals(poll._id));
+                              if (userVote) {
+                                  let points = poll.options[userVote.optionNumber].text === poll.result ? userVote.optionPoints : 0;
+                                  let correct = poll.options[userVote.optionNumber].text === poll.result ? 'correct' : '';
+                                  html += `<td class="${correct}">${poll.options[userVote.optionNumber].text}</td><td class="${correct}">${points}</td>`;
+                              } else {
+                                  html += '<td></td><td></td>';
+                              }
+                          });
+      
+                          html += '</tr>\n';
+                      });
+      
+                      // Добавляем итоговую таблицу
+                      html += `</table>\n<h2>Итог:</h2>\n<table>\n<tr><th>Место</th><th>Имя</th><th>Общие очки</th></tr>\n`;
+      
+                      // Считаем общее количество очков для каждого игрока
+                      let totalPoints = userNames.map(userName => {
+                          let points = 0;
+                          polls.forEach(poll => {
+                              let userVote = votes.find(vote => vote.userName === userName && vote.pollId.equals(poll._id));
+                              if (userVote && poll.options[userVote.optionNumber].text === poll.result) {
+                                  points += userVote.optionPoints;
+                              }
+                          });
+                          return { userName, points };
+                      });
+      
+                      // Сортируем игроков по общему количеству очков
+                      totalPoints.sort((a, b) => b.points - a.points);
+      
+                      totalPoints.forEach((player, index) => {
+                          html += `<tr><td>${index + 1}</td><td>${player.userName}</td><td>${player.points}</td></tr>\n`;
+                      });
+      
+                      html += '</table>\n</body>\n</html>';
+      
+                      fs.writeFile('standings.html', html, err => {
+                        if (err) {
+                            console.error('Ошибка при записи файла:', err);
+                        } else {
+                            ctx.reply("Откройте этот файл в браузере для просмотра турнирного положения.");
+                            ctx.replyWithDocument({
+                                source: fs.createReadStream(path.join(__dirname, 'standings.html')),
+                                filename: 'standings.html'
+                            });
+                        }
+                    });
+                  })
+                  .catch(error => console.error('Ошибка при поиске опросов:', error));
+              })
+              .catch(error => console.error('Ошибка при поиске голосов:', error));
+          })
+          .catch(error => console.error('Ошибка при поиске турнира:', error));
+      }
 
   });
 
