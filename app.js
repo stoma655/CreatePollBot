@@ -56,9 +56,10 @@ bot.start((ctx) => {
                   ]).resize());
                 } else {
                   ctx.reply(
-                    'Добро пожаловать!',
+                    'Добро пожаловать обратно!',
                     Markup.keyboard([
-                      ['🔑 Регистрация в турнир', '🎮 Мои турниры']
+                      ['🎮 Мои текущие турниры', '🎮 Мои прошедшие турниры'], // Эти кнопки будут на одной строке
+                      ['🔑 Регистрация в турнир'] // Эта кнопка будет на следующей строке
                     ]).resize()
                   );
                 }
@@ -69,7 +70,8 @@ bot.start((ctx) => {
             ctx.reply(
               'Добро пожаловать обратно!',
               Markup.keyboard([
-                ['🔑 Регистрация в турнир', '🎮 Мои турниры']
+                ['🎮 Мои текущие турниры', '🎮 Мои прошедшие турниры'], // Эти кнопки будут на одной строке
+                ['🔑 Регистрация в турнир'] // Эта кнопка будет на следующей строке
               ]).resize()
             );
           }
@@ -434,15 +436,17 @@ bot.command('/clear', (ctx) => {
           })
           .catch(error => console.error('Ошибка при поиске регистраций:', error));
       }
-      else if (ctx.message.text === '🎮 Мои турниры') {
+
+      else if (ctx.message.text === '🎮 Мои текущие турниры') {
         // Найдите все одобренные регистрации текущего пользователя
         Registration.find({ telegramTag: ctx.from.username, status: 'approved' })
         .then(async registrations => {
             const registeredTournaments = registrations.map(registration => registration.tournamentId);
-            const tournaments = await Tournament.find({ _id: { $in: registeredTournaments } }).sort({ name: 1 });
-
+            const currentTimestamp = new Date(); // текущее время
+            const tournaments = await Tournament.find({ _id: { $in: registeredTournaments }, endDate: { $gt: currentTimestamp } }).sort({ name: 1 });
+    
             if (tournaments.length === 0) {
-            ctx.reply('📢 Вы не зарегистрированы ни в одном турнире. Исправьте это, нажав на кнопку "Регистрация в турнир"🚀🚀');
+            ctx.reply('📢 Вы не зарегистрированы ни в одном текущем турнире. Исправьте это, нажав на кнопку "Регистрация в турнир"🚀🚀');
             } else {
             let delay = 0;
             for (const tournament of tournaments) {
@@ -461,7 +465,27 @@ bot.command('/clear', (ctx) => {
             }
         })
         .catch(error => console.error('Ошибка при поиске регистраций:', error));
-      } else if (ctx.session.awaitingBuyIn) {
+    }
+
+  //   else if (ctx.message.text === '🎮 Мои текущие турниры') {
+  //     // Найдите все одобренные регистрации текущего пользователя
+  //     Registration.find({ telegramTag: ctx.from.username, status: 'approved' })
+  //     .then(async registrations => {
+  //         const registeredTournaments = registrations.map(registration => registration.tournamentId);
+  //         const currentTimestamp = new Date(); // текущее время
+  //         const tournaments = await Tournament.find({ _id: { $in: registeredTournaments }, endDate: { $gt: currentTimestamp } }).sort({ name: 1 });
+  
+  //         if (tournaments.length === 0) {
+  //         ctx.reply('📢 Вы не зарегистрированы ни в одном текущем турнире. Исправьте это, нажав на кнопку "Регистрация в турнир"🚀🚀');
+  //         } else {
+  //         let tournamentNames = tournaments.map(tournament => tournament.name);
+  //         ctx.reply('Выберите турнир:', Markup.keyboard(tournamentNames).oneTime().resize());
+  //         }
+  //     })
+  //     .catch(error => console.error('Ошибка при поиске регистраций:', error));
+  // }
+     
+      else if (ctx.session.awaitingBuyIn) {
         const buyIn = ctx.message.text;
         if (buyIn === 'Фри') {
           // Найти пользователя по тегу Telegram
