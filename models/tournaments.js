@@ -13,10 +13,6 @@ const TournamentSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  endDate: {
-    type: Date,
-    required: true
-  },
   buyIns: [{ // новое поле для бай-инов
     type: String
   }],
@@ -28,7 +24,11 @@ const TournamentSchema = new mongoose.Schema({
   },
   image: {
     type: String
+  },
+  closed: {
+    type: Boolean
   }
+  
 });
 
 const Tournament = mongoose.model('Tournament', TournamentSchema);
