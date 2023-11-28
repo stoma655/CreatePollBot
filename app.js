@@ -93,6 +93,10 @@ bot.command('user', (ctx) => {
   ctx.reply('Теперь вы в режиме пользователя.');
 });
 
+
+
+
+
 bot.command('/clear', (ctx) => {
     // Очистите сессию пользователя
     ctx.session = null;
@@ -179,10 +183,26 @@ bot.command('/clear', (ctx) => {
             console.log(err);
           });
         }
-      } else if (ctx.message.text === 'Создать турнир') {
+      } 
+
+
+      
+      else if (ctx.message.text === 'Создать турнир') {
+        ctx.reply('Введите виды спорта через +, например: [Football + Basketball] примеры для ввода (Football, Basketball, Hockey, Tennis,  Dota2, CS2)');
+        ctx.session.awaitingTournamentData = { step: 'sports' };
+      } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'sports') {
+        ctx.session.awaitingTournamentData.sports = ctx.message.text;
+
         ctx.reply('Введите название турнира:');
-        ctx.session.awaitingTournamentData = { step: 'name' };
-      } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'name') {
+        ctx.session.awaitingTournamentData.step = 'name';
+      }
+
+      
+      // else if (ctx.message.text === 'Создать турнир') {
+      //   ctx.reply('Введите название турнира:');
+      //   ctx.session.awaitingTournamentData = { step: 'name' };
+      // } 
+      else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'name') {
           ctx.session.awaitingTournamentData.name = ctx.message.text;
           ctx.reply('Введите описание турнира:');
           ctx.session.awaitingTournamentData.step = 'description';
@@ -242,7 +262,8 @@ bot.command('/clear', (ctx) => {
                     buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
                     type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
                     password: '', // добавлено новое поле
-                    image: ctx.session.awaitingTournamentData.imageUrl
+                    image: ctx.session.awaitingTournamentData.imageUrl,
+                    sports: ctx.session.awaitingTournamentData.sports
                 });
 
                 newTournament.save()
@@ -417,44 +438,135 @@ bot.command('/clear', (ctx) => {
 
   async function handleUserText(ctx) {
 
-    if (ctx.message.text === '🔑 Регистрация в турнир') {
-      // Найдите все регистрации текущего пользователя
-      Registration.find({ telegramTag: ctx.from.username })
-      .then(async registrations => {
-          const registeredTournaments = registrations.map(registration => registration.tournamentId.toString());
+  //   if (ctx.message.text === '🔑 Регистрация в турнир') {
+  //     // Найдите все регистрации текущего пользователя
+  //     Registration.find({ telegramTag: ctx.from.username })
+  //     .then(async registrations => {
+  //         const registeredTournaments = registrations.map(registration => registration.tournamentId.toString());
   
-          // Найдите все турниры в базе данных, которые не закрыты
-          const tournaments = await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 });
+  //         // Найдите все турниры в базе данных, которые не закрыты
+  //         const tournaments = await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 });
   
-          // Отправьте каждый турнир пользователю
-          for (const tournament of tournaments) {
-              const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
-              const count = tournamentRegistrations.length;
-              if (!registeredTournaments.includes(tournament._id.toString())) {
-                  let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций: ${count}\n\n⏳ Окончание регистрации: ${tournament.startDate.toLocaleString()}`;
-                  if (tournament.image) {
-                      message += `\n ${tournament.image}`;
-                  }
-                  ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
-                      Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)
-                  ]));
-              } else {
-                  const registration = registrations.find(reg => reg.tournamentId.toString() === tournament._id.toString());
-                  let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций: ${count}\n\n`;
-                  if (registration.status === 'approved') {
-                      message += '🎟️ Вы уже зарегистрированы на этот турнир.';
-                  } else if (registration.status === 'pending') {
-                      message += '⏳ Ваша заявка на участие ждет одобрения.';
-                  }
-                  if (tournament.image) {
-                      message += `\n ${tournament.image}`;
-                  }
-                  ctx.replyWithMarkdown(message);
-              }
-          }
-      })
-      .catch(error => console.error('Ошибка при поиске регистраций:', error));
-  }
+  //         // Отправьте каждый турнир пользователю
+  //         for (const tournament of tournaments) {
+  //             const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
+  //             const count = tournamentRegistrations.length;
+  //             if (!registeredTournaments.includes(tournament._id.toString())) {
+  //                 let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций: ${count}\n\n⏳ Окончание регистрации: ${tournament.startDate.toLocaleString()}`;
+  //                 if (tournament.image) {
+  //                     message += `\n ${tournament.image}`;
+  //                 }
+  //                 ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
+  //                     Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)
+  //                 ]));
+  //             } else {
+  //                 const registration = registrations.find(reg => reg.tournamentId.toString() === tournament._id.toString());
+  //                 let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций: ${count}\n\n`;
+  //                 if (registration.status === 'approved') {
+  //                     message += '🎟️ Вы уже зарегистрированы на этот турнир.';
+  //                 } else if (registration.status === 'pending') {
+  //                     message += '⏳ Ваша заявка на участие ждет одобрения.';
+  //                 }
+  //                 if (tournament.image) {
+  //                     message += `\n ${tournament.image}`;
+  //                 }
+  //                 ctx.replyWithMarkdown(message);
+  //             }
+  //         }
+  //     })
+  //     .catch(error => console.error('Ошибка при поиске регистраций:', error));
+  // }
+
+
+  if (ctx.message.text === '🔑 Регистрация в турнир') {
+    // Получите все турниры
+    const tournaments = await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 });
+
+    // Получите все уникальные виды спорта из турниров
+    const sportsInTournaments = [...new Set(tournaments.flatMap(tournament => tournament.sports ? tournament.sports.split(' + ') : []))];
+
+    // Создайте кнопки для каждого вида спорта и кнопку "Все"
+    const buttons = sportsInTournaments.map(sport => Markup.button.callback(sport, `filter_${sport}`));
+    buttons.push(Markup.button.callback('Все', 'filter_all'));
+
+    // Отправьте сообщение с кнопками
+    ctx.reply('Выберите вид спорта или "Все":', Markup.keyboard(buttons).oneTime().resize());
+}
+
+// bot.on('callback_query', (ctx) => {
+//     // Получите выбранный вид спорта из данных callback_query
+//     const [action, sport] = ctx.callbackQuery.data.split('_');
+
+//     if (action === 'filter') {
+//         // Получите все турниры с выбранным видом спорта или все турниры, если выбрано "Все"
+//         const tournaments = sport === 'all' ? await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 }) : await Tournament.find({ closed: { $ne: true }, sports: { $regex: sport } }).sort({ name: 1 });
+
+//         // Отправьте каждый турнир пользователю
+//         for (const tournament of tournaments) {
+//             // Здесь ваш код для отправки информации о турнире
+//         }
+//     }
+// });
+
+//   if (ctx.message.text === '🔑 Регистрация в турнир') {
+//     // Найдите все регистрации текущего пользователя
+//     Registration.find({ telegramTag: ctx.from.username })
+//     .then(async registrations => {
+//         const registeredTournaments = registrations.map(registration => registration.tournamentId.toString());
+
+//         // Найдите все турниры в базе данных, которые не закрыты
+//         const tournaments = await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 });
+
+//         // Отправьте каждый турнир пользователю
+//         for (const tournament of tournaments) {
+//             const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
+
+//             // Сгруппируйте регистрации по бай-ину и подсчитайте количество регистраций для каждого бай-ина
+//             const buyInCounts = {};
+//             tournament.buyIns.forEach(buyIn => {
+//                 buyInCounts[buyIn] = tournamentRegistrations.filter(registration => registration.buyIn === buyIn).length;
+//             });
+
+//             let buyInMessage = '';
+//             for (const buyIn in buyInCounts) {
+//                 buyInMessage += `\n${buyIn} - ${buyInCounts[buyIn]} players`;
+//             }
+
+//             if (!registeredTournaments.includes(tournament._id.toString())) {
+//                 let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n`;
+//                 if (tournament.sports) {
+//                     message += `🏅 Виды спорта: ${tournament.sports}\n\n`;
+//                 }
+//                 message += `${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций:${buyInMessage}\n\n⏳ Окончание регистрации: ${tournament.startDate.toLocaleString()}`;
+//                 if (tournament.image) {
+//                     message += `\n ${tournament.image}`;
+//                 }
+//                 ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
+//                     Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)
+//                 ]));
+//             } else {
+//                 const registration = registrations.find(reg => reg.tournamentId.toString() === tournament._id.toString());
+//                 let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n`;
+//                 if (tournament.sports) {
+//                     message += `🏅 Виды спорта: ${tournament.sports}\n\n`;
+//                 }
+//                 message += `${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций:${buyInMessage}\n\n`;
+//                 if (registration.status === 'approved') {
+//                     message += '🎟️ Вы уже зарегистрированы на этот турнир.';
+//                 } else if (registration.status === 'pending') {
+//                     message += '⏳ Ваша заявка на участие ждет одобрения.';
+//                 }
+//                 if (tournament.image) {
+//                     message += `\n ${tournament.image}`;
+//                 }
+//                 ctx.replyWithMarkdown(message);
+//             }
+//         }
+//     })
+//     .catch(error => console.error('Ошибка при поиске регистраций:', error));
+// }
+
+
 
     //   else if (ctx.message.text === '🎮 Мои текущие турниры') {
     //     // Найдите все одобренные регистрации текущего пользователя
@@ -800,7 +912,7 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
 
   }
   
-  bot.on('callback_query', (ctx) => {
+  bot.on('callback_query', async (ctx) => {
     const action = ctx.callbackQuery.data.split('_')[0];
     const id = ctx.callbackQuery.data.split('_')[1];
 
@@ -837,6 +949,42 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
           })
           .catch(error => console.error('Ошибка при поиске открытых опросов:', error));
       }
+
+
+      if (action === 'filter') {
+
+        const sport = id;
+        // Получите все турниры с выбранным видом спорта или все турниры, если выбрано "Все"
+        const tournaments = sport === 'all' ? await Tournament.find({ closed: { $ne: true } }).sort({ name: 1 }) : await Tournament.find({ closed: { $ne: true }, sports: { $regex: sport } }).sort({ name: 1 });
+
+        // Отправьте каждый турнир пользователю
+        for (const tournament of tournaments) {
+            const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
+
+            // Сгруппируйте регистрации по бай-ину и подсчитайте количество регистраций для каждого бай-ина
+            const buyInCounts = {};
+            tournament.buyIns.forEach(buyIn => {
+                buyInCounts[buyIn] = tournamentRegistrations.filter(registration => registration.buyIn === buyIn).length;
+            });
+
+            let buyInMessage = '';
+            for (const buyIn in buyInCounts) {
+                buyInMessage += `\n${buyIn} - ${buyInCounts[buyIn]} players`;
+            }
+
+            let message = `*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n`;
+            if (tournament.sports) {
+                message += `🏅 Виды спорта: ${tournament.sports}\n\n`;
+            }
+            message += `${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n🚪 Количество регистраций:${buyInMessage}\n\n⏳ Окончание регистрации: ${tournament.startDate.toLocaleString()}`;
+            if (tournament.image) {
+                message += `\n ${tournament.image}`;
+            }
+            ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
+                Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)
+            ]));
+        }
+    }
 
       if (ctx.callbackQuery.data.startsWith('end_tournament_')) {
         // Извлеките id турнира из данных callbackQuery

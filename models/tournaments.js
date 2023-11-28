@@ -27,6 +27,9 @@ const TournamentSchema = new mongoose.Schema({
   },
   closed: {
     type: Boolean
+  },
+  sports: {
+    type: String
   }
   
 });
