@@ -888,7 +888,7 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
             `[USDT  (TRC-20)]\n` +
             `TYgJJXoQsFv9Yxq6WgAk9jGiwM8ZKCGaCa\n\n` +
             `[Toncoin (TON)]\n` +
-            `UQDtZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD\n\n` +
+            `UQD-tZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD\n\n` +
             `Для покупки криптовалюты и оплаты можете воспользоваться @wallet\n` +
             `Укажите адрес Вашего кошелька, с которого будет произведена оплата`);
           ctx.session.awaitingWalletNumber = { 
@@ -1213,32 +1213,26 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
 
       if (ctx.callbackQuery.data.startsWith('bets_')) {
         const tournamentId = ctx.callbackQuery.data.slice(5);
-        // Найдите все опросы для этого турнира
         Poll.find({ tournamentId: tournamentId }).sort('_id')
           .then(async polls => {
             const tournament = await Tournament.findById(tournamentId);
-            // Отправьте вводное сообщение с названием турнира
             await ctx.reply(`🚨🎲 Матчи для голосования в турнире "${tournament.name}".🎲🚨 Будьте внимательны и удачи! 💸💸💸`);
             
-            let activePollsExist = false; // Добавьте флаг для отслеживания активных опросов
+            let activePollsExist = false;
     
-            // Отправьте каждый опрос пользователю
             for (const poll of polls) { 
-              // Проверьте, не истекло ли время голосования
               if (new Date(poll.closingDate) > new Date()) { 
-                activePollsExist = true; // Если опрос активен, установите флаг в true
+                activePollsExist = true;
                 let options = '';
                 poll.options.forEach((option, index) => {
                   options += `Вариант ${index + 1}: ${option.text} - ${option.points} points\n`;
                 });
                 const buttons = poll.options.map((option, index) => Markup.button.callback(`${option.text} - ${option.points} points`, `vote_${poll._id}_${index}`));
                 
-                // Найдите голос пользователя в этом опросе
                 const vote = await Vote.findOne({ pollId: poll._id, userTag: ctx.from.username }); 
                 
                 let voteInfo = '';
                 if (vote) {
-                  // Если голос найден, добавьте информацию о голосе
                   voteInfo = `\n\n✅ Вы уже проголосовали в этом опросе. Ваш выбор: ${poll.options[vote.optionNumber].text}`;
                 }
                 
@@ -1247,26 +1241,31 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
                 const daysLeft = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
                 const hoursLeft = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                
+    
+                // Форматирование даты и времени начала матча
+                const matchStartDate = new Date(poll.closingDate).toLocaleString('ru-RU');
+    
                 await ctx.replyWithMarkdown( 
                   `📊 Турнир: ${tournament.name}\n\n` +
                   `🔥 Матч: ${poll.name}\n` +
                   `📋 Описание матча: ${poll.description}\n\n` +
+                  `📅 Дата и время начала матча: ${matchStartDate}\n\n` + // Добавьте это здесь
                   `${options}` +
                   `\n\n⏰ Опрос закроется через: ${daysLeft} дней ${hoursLeft} часов ${minutesLeft} минут` +
-                  voteInfo, // Переместите voteInfo сюда
+                  voteInfo,
                   Markup.inlineKeyboard(buttons, { columns: 1 })
                 );
-                // ... остальной код ...
               }
             }
     
-            if (!activePollsExist) { // Если активных опросов нет, отправьте соответствующее сообщение
+            if (!activePollsExist) {
               ctx.reply('На данный момент у этого турнира нет актуальных матчей.');
             }
           })
           .catch(error => console.error('Ошибка при поиске опросов:', error));
-      }
+    }
+    
+    
 
       
         // Проверяем, что callback_query начинается с 'vote_'
