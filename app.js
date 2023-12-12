@@ -860,11 +860,13 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
             .catch(error => console.error('Ошибка при поиске пользователя:', error));
         } else {
           // Запрос номера кошелька
-          ctx.reply(`'Реквизиты для оплаты:\n\n'
-          '[USDT  (TRC-20)]  TYgJJXoQsFv9Yxq6WgAk9jGiwM8ZKCGaCa\n\n'
-          '[Toncoin (TON)]  UQD-tZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD\n\n'
-          'Для покупки криптовалюты и оплаты можете воспользоваться @wallet\n\n'
-          'Укажите адрес Вашего кошелька, с которого будет произведена оплата'`)
+          ctx.reply(`\`\`\`
+            Реквизиты для оплаты:
+            [USDT  (TRC-20)]  TYgJJXoQsFv9Yxq6WgAk9jGiwM8ZKCGaCa
+            [Toncoin (TON)]  UQD-tZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD
+            Для покупки криптовалюты и оплаты можете воспользоваться @wallet
+            Укажите адрес Вашего кошелька, с которого будет произведена оплата
+          \`\`\``);
           ctx.session.awaitingWalletNumber = { 
             buyIn,
             tournamentId: ctx.session.awaitingBuyIn.tournamentId,
