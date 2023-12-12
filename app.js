@@ -648,7 +648,6 @@ else if (ctx.message.text && ctx.session.waitingSportChoice == true) {
   }
 
   else if (ctx.message.text && ctx.session.awaitingActiveTournamentSelection == true) {
-    // Обработайте выбор турнира
     const selectedTournamentName = ctx.message.text;
     const tournament = await Tournament.findOne({ name: selectedTournamentName });
 
@@ -657,7 +656,7 @@ else if (ctx.message.text && ctx.session.waitingSportChoice == true) {
     } else {
         const registration = await Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username });
 
-         // Получите количество регистраций
+        // Получите количество регистраций
         const registrationCount = await Registration.count({ tournamentId: tournament._id });
 
         // Проверьте, активен ли турнир
@@ -666,7 +665,21 @@ else if (ctx.message.text && ctx.session.waitingSportChoice == true) {
         } else if (!registration) {
             ctx.reply(`Вы не зарегистрированы в турнире "${selectedTournamentName}".`);
         } else {
-          ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n💰 Бай-ин: ${registration.buyIn}\n\n🚪 Количество регистраций: ${registrationCount}`,
+            // Форматирование даты начала турнира
+            const startDate = new Date(tournament.startDate).toLocaleDateString('ru-RU');
+
+            // Вычисление призового фонда
+            let prizePool = 'Freeroll';
+            if (registration.buyIn !== 'Freeroll') {
+                const buyInAmount = parseFloat(registration.buyIn.replace(/[^0-9\.]/g, ''));
+                const totalPrize = buyInAmount * registrationCount;
+                // Если призовой фонд является целым числом, отображаем без десятичных знаков
+                prizePool = '💰 Призовой фонд: ' + (totalPrize % 1 === 0 ? totalPrize.toFixed(0) : totalPrize.toFixed(2)) + '$';
+            } else {
+                prizePool = '💰 Призовой фонд: Freeroll';
+            }
+
+            ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n📅 Дата начала: ${startDate}\n\n💵 Бай-ин: ${registration.buyIn}\n\n${prizePool}\n\n🚪 Количество регистраций: ${registrationCount}`,
                 Markup.inlineKeyboard([
                 [Markup.button.callback('Матчи для ставок', `bets_${tournament._id}`)],
                 [Markup.button.callback('Прогнозы участников', `results_${tournament._id}`)],
@@ -676,9 +689,9 @@ else if (ctx.message.text && ctx.session.waitingSportChoice == true) {
         }
     }
 
-    // Сбросьте флаг в сессии пользователя
     ctx.session.awaitingActiveTournamentSelection = false;
-}
+  }
+
 
 
 else if (ctx.message.text === '🎮 Мои прошедшие турниры') {
@@ -705,7 +718,6 @@ else if (ctx.message.text === '🎮 Мои прошедшие турниры') {
 
 
 else if (ctx.message.text && ctx.session.awaitingPastTournamentSelection == true) {
-  // Обработайте выбор турнира
   const selectedTournamentName = ctx.message.text;
   const tournament = await Tournament.findOne({ name: selectedTournamentName });
 
@@ -713,7 +725,6 @@ else if (ctx.message.text && ctx.session.awaitingPastTournamentSelection == true
       ctx.reply(`Извините, я не могу найти турнир с названием "${selectedTournamentName}". Пожалуйста, убедитесь, что вы правильно ввели название турнира.`);
   } else {
       const registration = await Registration.findOne({ tournamentId: tournament._id, telegramTag: ctx.from.username });
-
 
       // Получите количество регистраций
       const registrationCount = await Registration.count({ tournamentId: tournament._id });
@@ -724,9 +735,22 @@ else if (ctx.message.text && ctx.session.awaitingPastTournamentSelection == true
       } else if (!registration) {
           ctx.reply(`Вы не зарегистрированы в турнире "${selectedTournamentName}".`);
       } else {
-        ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n${tournament.type === 'private' ? '🔒 Приватный' : '🔓 Публичный'}\n\n💰 Бай-ин: ${registration.buyIn}\n\n🚪 Количество регистраций: ${registrationCount}`,
+          // Форматирование даты начала турнира
+          const startDate = new Date(tournament.startDate).toLocaleDateString('ru-RU');
+
+          // Вычисление призового фонда
+          let prizePool = 'Freeroll';
+          if (registration.buyIn !== 'Freeroll') {
+              const buyInAmount = parseFloat(registration.buyIn.replace(/[^0-9\.]/g, ''));
+              const totalPrize = buyInAmount * registrationCount;
+              // Если призовой фонд является целым числом, отображаем без десятичных знаков
+              prizePool = '💰 Призовой фонд: ' + (totalPrize % 1 === 0 ? totalPrize.toFixed(0) : totalPrize.toFixed(2)) + '$';
+          } else {
+              prizePool = '💰 Призовой фонд: Freeroll';
+          }
+
+          ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n📅 Дата начала: ${startDate}\n\n💵 Бай-ин: ${registration.buyIn}\n\n${prizePool}\n\n🚪 Количество регистраций: ${registrationCount}`,
               Markup.inlineKeyboard([
-              // [Markup.button.callback('Матчи для ставок', `bets_${tournament._id}`)],
               [Markup.button.callback('Прогнозы участников', `results_${tournament._id}`)],
               [Markup.button.callback('Турнирное положение', `standings_${tournament._id}`)]
               ])
@@ -734,9 +758,9 @@ else if (ctx.message.text && ctx.session.awaitingPastTournamentSelection == true
       }
   }
 
-  // Сбросьте флаг в сессии пользователя
   ctx.session.awaitingPastTournamentSelection = false;
 }
+
 
 else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
 
@@ -860,13 +884,13 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
             .catch(error => console.error('Ошибка при поиске пользователя:', error));
         } else {
           // Запрос номера кошелька
-          ctx.reply(`\`\`\`
-            Реквизиты для оплаты:
-            [USDT  (TRC-20)]  TYgJJXoQsFv9Yxq6WgAk9jGiwM8ZKCGaCa
-            [Toncoin (TON)]  UQD-tZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD
-            Для покупки криптовалюты и оплаты можете воспользоваться @wallet
-            Укажите адрес Вашего кошелька, с которого будет произведена оплата
-          \`\`\``);
+          ctx.reply(`Реквизиты для оплаты:\n\n` +
+            `[USDT  (TRC-20)]\n` +
+            `TYgJJXoQsFv9Yxq6WgAk9jGiwM8ZKCGaCa\n\n` +
+            `[Toncoin (TON)]\n` +
+            `UQDtZPC3ibPM2apQH3oB8B6rqobrfokQ_iVu6ck78mokjGD\n\n` +
+            `Для покупки криптовалюты и оплаты можете воспользоваться @wallet\n` +
+            `Укажите адрес Вашего кошелька, с которого будет произведена оплата`);
           ctx.session.awaitingWalletNumber = { 
             buyIn,
             tournamentId: ctx.session.awaitingBuyIn.tournamentId,
