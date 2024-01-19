@@ -196,12 +196,6 @@ bot.command('/clear', (ctx) => {
         ctx.reply('Введите название турнира:');
         ctx.session.awaitingTournamentData.step = 'name';
       }
-
-      
-      // else if (ctx.message.text === 'Создать турнир') {
-      //   ctx.reply('Введите название турнира:');
-      //   ctx.session.awaitingTournamentData = { step: 'name' };
-      // } 
       else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'name') {
           ctx.session.awaitingTournamentData.name = ctx.message.text;
           ctx.reply('Введите описание турнира:');
@@ -226,23 +220,31 @@ bot.command('/clear', (ctx) => {
               ctx.session.awaitingTournamentData.startDate = startDate;
               // ctx.reply('Введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
               // ctx.session.awaitingTournamentData.step = 'endDate';
-              ctx.reply('Введите бай-ины через запятую:');
-              ctx.session.awaitingTournamentData.step = 'buyIns';
+              ctx.reply('Введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
+              ctx.session.awaitingTournamentData.step = 'endDate';
+
+              // ctx.reply('Введите бай-ины через запятую:');
+              // ctx.session.awaitingTournamentData.step = 'buyIns';
             }
-        } 
-        // else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'endDate') {
-        //     const endDate = new Date(ctx.message.text);
-        //     if (isNaN(endDate)) {
-        //       ctx.reply('Неверный формат даты. Пожалуйста, введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
-        //     } else {
-        //       ctx.session.awaitingTournamentData.endDate = endDate;
-        //       ctx.reply('Введите бай-ины через запятую:');
-        //       ctx.session.awaitingTournamentData.step = 'buyIns';
-
-        //     }
-
-        // }
-         else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'buyIns') {
+        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'endDate') {
+          const endDate = new Date(ctx.message.text);
+          if (isNaN(endDate)) {
+            ctx.reply('Неверный формат даты. Пожалуйста, введите дату окончания турнира в формате ГГГГ-ММ-ДД:');
+          } else {
+            ctx.session.awaitingTournamentData.endDate = endDate;
+            ctx.reply('Введите дату и время окончания регистрации в турнир в формате ГГГГ-ММ-ДД_ЧЧ:ММ:');
+            ctx.session.awaitingTournamentData.step = 'registrationEndDate';
+          }
+        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'registrationEndDate') {
+          const registrationEndDate = new Date(ctx.message.text.replace('_', 'T'));
+          if (isNaN(registrationEndDate)) {
+            ctx.reply('Неверный формат даты. Пожалуйста, введите дату и время окончания регистрации в турнир в формате ГГГГ-ММ-ДД_ЧЧ:ММ:');
+          } else {
+            ctx.session.awaitingTournamentData.registrationEndDate = registrationEndDate;
+            ctx.reply('Введите бай-ины через запятую:');
+            ctx.session.awaitingTournamentData.step = 'buyIns';
+          }
+        } else if (ctx.session.awaitingTournamentData && ctx.session.awaitingTournamentData.step === 'buyIns') {
             ctx.session.awaitingTournamentData.buyIns = ctx.message.text.split(',');
             ctx.reply('Турнир является публичным или приватным?', Markup.keyboard(['public', 'private']).oneTime().resize());
             ctx.session.awaitingTournamentData.step = 'type';
@@ -258,7 +260,8 @@ bot.command('/clear', (ctx) => {
                     name: ctx.session.awaitingTournamentData.name,
                     description: ctx.session.awaitingTournamentData.description,
                     startDate: ctx.session.awaitingTournamentData.startDate,
-                    // endDate: ctx.session.awaitingTournamentData.endDate,
+                    endDate: ctx.session.awaitingTournamentData.endDate,
+                    registrationEndDate: ctx.session.awaitingTournamentData.registrationEndDate,
                     buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
                     type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
                     password: '', // добавлено новое поле
@@ -282,6 +285,7 @@ bot.command('/clear', (ctx) => {
                 description: ctx.session.awaitingTournamentData.description,
                 startDate: ctx.session.awaitingTournamentData.startDate,
                 endDate: ctx.session.awaitingTournamentData.endDate,
+                registrationEndDate: ctx.session.awaitingTournamentData.registrationEndDate,
                 buyIns: ctx.session.awaitingTournamentData.buyIns, // добавлено новое поле
                 type: ctx.session.awaitingTournamentData.type, // добавлено новое поле
                 password: ctx.session.awaitingTournamentData.type.toLowerCase() === 'private' ? ctx.session.awaitingTournamentData.password : '', // добавлено новое поле
@@ -337,7 +341,7 @@ bot.command('/clear', (ctx) => {
         } else {
             ctx.session.awaitingPollData.closingDate = closingDate;
                     // Найдите все турниры и покажите их администратору
-            Tournament.find()
+            Tournament.find().sort({ endDate: -1 })
             .then(tournaments => {
             const tournamentNames = tournaments.map(tournament => tournament.name);
             ctx.reply('Выберите турнир, к которому относится этот опрос:', Markup.keyboard(tournamentNames).oneTime().resize());
@@ -478,6 +482,13 @@ else if (ctx.message.text && ctx.session.waitingSportChoice == true) {
   // Отправить каждый турнир пользователю
  // Отправить каждый турнир пользователю
 for (const tournament of tournaments) {
+
+  if (new Date() > tournament.registrationEndDate) {
+    // Если время регистрации истекло, установить свойство closed в true
+    tournament.closed = true;
+    await tournament.save();
+  }
+
   const tournamentRegistrations = await Registration.find({ tournamentId: tournament._id });
 
   // Сгруппируйте регистрации по бай-ину и подсчитайте количество регистраций для каждого бай-ина
@@ -501,31 +512,37 @@ for (const tournament of tournaments) {
   if (new Date() > tournament.startDate) {
     message += '🚫 Турнир уже начался.';
   } else {
-    message += `⏳ Окончание регистрации: ${tournament.startDate.toLocaleString()}`;
+    message += `⏳ Окончание регистрации: ${tournament.startDate.toLocaleDateString()}\n\n`;
+    if (tournament.startDate) {
+      message += `🗓️ Дата начала турнира: ${tournament.startDate.toLocaleDateString()}\n`;
+    }
+    if (tournament.endDate) {
+      message += `🗓️ Дата окончания турнира: ${tournament.endDate.toLocaleDateString()}\n`;
+    }
   }
 
-  if (tournament.image) {
-    message += `\n ${tournament.image}`;
-  }
-
-  if (!registeredTournaments.includes(tournament._id.toString())) {
+  try {
+    if (tournament.image && tournament.image.startsWith('http')) {
+      await ctx.replyWithPhoto({ url: tournament.image }, { caption: message, parse_mode: 'Markdown' });
+    } else {
+      await ctx.replyWithMarkdown(message);
+    }
     // Если время регистрации еще не истекло, добавить кнопку регистрации
     if (new Date() <= tournament.startDate) {
-      ctx.replyWithMarkdown(message, Markup.inlineKeyboard([
-        Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)
-      ]));
+      await ctx.reply('для регистрации в турнир нажмите 👇', Markup.inlineKeyboard([Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)]));
+    }
+  } catch (error) {
+    console.error('Ошибка при отправке изображения:', error);
+    if (new Date() <= tournament.startDate) {
+      await ctx.replyWithMarkdown(message, Markup.inlineKeyboard([Markup.button.callback('✅ Присоединиться', `join_${tournament._id}`)]));
     } else {
-      ctx.replyWithMarkdown(message);
+      await ctx.replyWithMarkdown(message);
     }
-  } else {
-    const registration = registrations.find(reg => reg.tournamentId.toString() === tournament._id.toString());
-    if (registration.status === 'approved') {
-      message += '🎟️ Вы уже зарегистрированы на этот турнир.';
-    } else if (registration.status === 'pending') {
-      message += '⏳ Ваша заявка на участие ждет одобрения.';
-    }
-    ctx.replyWithMarkdown(message);
   }
+  
+  
+  
+  
 }
 }
 // bot.on('callback_query', (ctx) => {
@@ -675,6 +692,12 @@ for (const tournament of tournaments) {
             // Форматирование даты начала турнира
             const startDate = new Date(tournament.startDate).toLocaleDateString('ru-RU');
 
+            // Форматирование даты окончания турнира
+            let endDateMessage = '';
+            if (tournament.endDate) {
+              const endDate = new Date(tournament.endDate).toLocaleDateString('ru-RU');
+              endDateMessage = `📅 Дата окончания: ${endDate}`;
+            }
             // Вычисление призового фонда
             let prizePool = 'Freeroll';
             if (registration.buyIn !== 'Freeroll') {
@@ -686,7 +709,7 @@ for (const tournament of tournaments) {
                 prizePool = '💰 Призовой фонд: Freeroll';
             }
 
-            ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n📅 Дата начала: ${startDate}\n\n💵 Бай-ин: ${registration.buyIn}\n\n${prizePool}\n\n🚪 Количество регистраций: ${registrationCount}`,
+            ctx.replyWithMarkdown(`*🏆 ${tournament.name}*\n📋 ${tournament.description}\n\n📅 Дата начала: ${startDate} ${endDateMessage}\n\n💵 Бай-ин: ${registration.buyIn}\n\n${prizePool}\n\n🚪 Количество регистраций: ${registrationCount}`,
                 Markup.inlineKeyboard([
                 [Markup.button.callback('Матчи для ставок', `bets_${tournament._id}`)],
                 [Markup.button.callback('Прогнозы участников', `results_${tournament._id}`)],
@@ -708,7 +731,8 @@ else if (ctx.message.text === '🎮 Мои прошедшие турниры') {
       const registeredTournaments = registrations.map(registration => registration.tournamentId);
 
       // Найдите все турниры, которые закрыты
-      const tournaments = await Tournament.find({ _id: { $in: registeredTournaments }, closed: true }).sort({ name: 1 });
+      // const tournaments = await Tournament.find({ _id: { $in: registeredTournaments }, closed: true }).sort({ name: 1 });
+      const tournaments = await Tournament.find({ _id: { $in: registeredTournaments }, closed: true }).sort({ endDate: -1 });
 
       if (tournaments.length === 0) {
           ctx.reply('📢 У вас нет прошедших турниров. Вы можете зарегистрироваться в новом турнире, нажав на кнопку "Регистрация в турнир"🚀🚀');
@@ -794,8 +818,12 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
             let html = `<html>\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<style>\n${styles}\n</style>\n</head>\n<body>\n<h1>${tournamentName}</h1>\n<h2>${poll.name}</h2>\n<table>\n<tr><th>Имя</th><th>Выбранный ответ</th></tr>\n`;
 
             votes.forEach(vote => {
-                html += `<tr><td>${vote.userName}</td><td>${poll.options[vote.optionNumber].text}</td></tr>\n`;
+                console.log(vote)
+                html += `<tr><td>${vote.userName} (${vote.userTag})</td><td>${poll.options[vote.optionNumber].text}</td></tr>\n`;
             });
+
+
+            
 
             html += '</table>\n</body>\n</html>';
 
@@ -1565,13 +1593,22 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
       
                       html += '</tr>\n';
       
-                      let userNames = [...new Set(votes.map(vote => vote.userName))];
+                      // let userNames = [...new Set(votes.map(vote => vote.userName))];
+                      // let userNamesAndTags = [...new Set(votes.map(vote => [vote.userName, vote.userTag]))];
+                      let userNamesAndTags = votes.filter((vote, index, self) =>
+                        index === self.findIndex((v) => (
+                          v.userName === vote.userName && v.userTag === vote.userTag
+                        ))
+                      ).map(vote => [vote.userName, vote.userTag]);
+
+                      console.log(userNamesAndTags)
+                      
       
-                      userNames.forEach(userName => {
-                          html += `<tr><td>${userName}</td>`;
+                      userNamesAndTags.forEach((userNameAndTag, ind) => {
+                          html += `<tr><td>${userNameAndTag[0]} (${userNameAndTag[1]})</td>`;
       
                           polls.forEach(poll => {
-                              let userVote = votes.find(vote => vote.userName === userName && vote.pollId.equals(poll._id));
+                              let userVote = votes.find(vote => vote.userName === userNameAndTag[0] && vote.pollId.equals(poll._id));
                               if (userVote) {
                                   let points = poll.options[userVote.optionNumber].text === poll.result ? userVote.optionPoints : 0;
                                   let correct = poll.options[userVote.optionNumber].text === poll.result ? 'correct' : '';
@@ -1588,22 +1625,24 @@ else if (ctx.message.text && ctx.session.prognozyUchastnikov == true) {
                       html += `</table>\n<h2>Итог:</h2>\n<table>\n<tr><th>Место</th><th>Имя</th><th>Общие очки</th></tr>\n`;
       
                       // Считаем общее количество очков для каждого игрока
-                      let totalPoints = userNames.map(userName => {
+                      let totalPoints = userNamesAndTags.map(userNameAndTag => {
                           let points = 0;
                           polls.forEach(poll => {
-                              let userVote = votes.find(vote => vote.userName === userName && vote.pollId.equals(poll._id));
+                              let userVote = votes.find(vote => vote.userName === userNameAndTag[0] && vote.pollId.equals(poll._id));
                               if (userVote && poll.options[userVote.optionNumber].text === poll.result) {
                                   points += userVote.optionPoints;
                               }
                           });
-                          return { userName, points };
+                          let userName = userNameAndTag[0];
+                          let userTag = userNameAndTag[1];
+                          return { userName, userTag, points };
                       });
       
                       // Сортируем игроков по общему количеству очков
                       totalPoints.sort((a, b) => b.points - a.points);
       
                       totalPoints.forEach((player, index) => {
-                          html += `<tr><td>${index + 1}</td><td>${player.userName}</td><td>${player.points}</td></tr>\n`;
+                          html += `<tr><td>${index + 1}</td><td>${player.userName} (${player.userTag})</td><td>${player.points}</td></tr>\n`;
                       });
       
                       html += '</table>\n</body>\n</html>';

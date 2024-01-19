@@ -13,13 +13,21 @@ const TournamentSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  buyIns: [{ // новое поле для бай-инов
+  endDate: { // новое поле для времени закрытия турнира
+    type: Date,
+    required: true
+  },
+  registrationEndDate: { // новое поле для времени окончания регистрации
+    type: Date,
+    required: true
+  },
+  buyIns: [{ 
     type: String
   }],
-  type: { // новое поле для типа турнира (публичный или приватный)
+  type: { 
     type: String
   },
-  password: { // новое поле для пароля (если турнир приватный)
+  password: { 
     type: String
   },
   image: {
@@ -31,7 +39,6 @@ const TournamentSchema = new mongoose.Schema({
   sports: {
     type: String
   }
-  
 });
 
 const Tournament = mongoose.model('Tournament', TournamentSchema);
